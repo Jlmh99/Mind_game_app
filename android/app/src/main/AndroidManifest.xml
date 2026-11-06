@@ -1,5 +1,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Foto de perfil: image_picker pide este permiso al abrir la cámara. -->
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- required="false": la app se puede instalar aunque el equipo no tenga cámara. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <application
         android:label="mindgames_app"
         android:name="${applicationName}"
@@ -42,6 +46,10 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Android 11+: permite encontrar la app de cámara para tomar la foto de perfil. -->
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
     </queries>
 </manifest>

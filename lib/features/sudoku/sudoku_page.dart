@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/partidas_repository.dart';
+import '../partidas/guardar_partida.dart';
 import 'sudoku_controller.dart';
 import 'sudoku_model.dart';
 import 'widgets/sudoku_tablero.dart';
@@ -15,9 +17,17 @@ class SudokuPage extends ConsumerWidget {
     final estado = ref.watch(sudokuControllerProvider);
     final controller = ref.read(sudokuControllerProvider.notifier);
 
-    // Cuando el juego pasa a "terminado" mostramos el diálogo una sola vez.
+    // Cuando el juego pasa a "terminado" (una sola vez por partida):
+    // se guarda en el servidor y se muestra el diálogo de victoria.
     ref.listen(sudokuControllerProvider, (anterior, nuevo) {
       if (anterior?.terminado != true && nuevo.terminado) {
+        guardarPartidaYAvisar(
+          context,
+          ref,
+          juego: juegoSudoku,
+          tiempoSegundos: nuevo.segundos,
+          puntuacion: nuevo.puntuacion,
+        );
         _mostrarVictoria(context, ref, nuevo);
       }
     });
@@ -138,19 +148,32 @@ class _Marcador extends StatelessWidget {
     final textos = Theme.of(context).textTheme;
     final colores = Theme.of(context).colorScheme;
 
+    // Flexible + FittedBox(scaleDown): en pantallas angostas o con letra
+    // grande el contenido se reduce en vez de desbordarse.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(children: [
-          const Icon(Icons.timer_outlined),
-          const SizedBox(width: 6),
-          Text(formatoTiempo(segundos), style: textos.titleLarge),
-        ]),
-        Row(children: [
-          Icon(Icons.close, color: colores.error),
-          const SizedBox(width: 6),
-          Text('Errores: $errores', style: textos.titleMedium),
-        ]),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(children: [
+              const Icon(Icons.timer_outlined),
+              const SizedBox(width: 6),
+              Text(formatoTiempo(segundos), style: textos.titleLarge),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(children: [
+              Icon(Icons.close, color: colores.error),
+              const SizedBox(width: 6),
+              Text('Errores: $errores', style: textos.titleMedium),
+            ]),
+          ),
+        ),
       ],
     );
   }

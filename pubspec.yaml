@@ -35,6 +35,8 @@ dependencies:
   http: ^1.6.0
   floor: ^1.5.0
   sqflite: ^2.4.4
+  image_picker: ^1.2.4
+  image: ^4.12.0
 
 dev_dependencies:
   flutter_test:

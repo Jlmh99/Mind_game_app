@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../../core/jwt_utils.dart';
 import '../../core/providers.dart';
 import '../../data/auth_repository.dart';
@@ -48,7 +51,43 @@ class AuthController extends Notifier<AuthState> {
     return const AuthState();
   }
 
-  String _msg(Object e) => e.toString().replaceFirst('Exception: ', '');
+  // ---------------- Mensajes genéricos (SEGURIDAD) ----------------
+  // Nunca se muestra al usuario el texto del servidor ni detalles técnicos
+  // (códigos HTTP, excepciones). Así no se revela, por ejemplo, si un correo
+  // está registrado ("Usuario no encontrado" vs "Contraseña incorrecta"),
+  // lo que ayudaría a un atacante a adivinar cuentas.
+  // OJO: los textos que el repositorio compara con el backend ("Login correcto",
+  // "2FA requerido"...) NO se tocan; aquí solo se traduce el error final.
+
+  static const mensajeCredenciales = 'Credenciales inválidas';
+  static const mensajeRegistro = 'No se pudo completar el registro';
+  static const mensajeCodigo = 'Código inválido';
+  static const mensajeConexion = 'No se pudo conectar, intenta de nuevo';
+
+  /// true si el error vino de la red o del servidor (sin conexión, timeout,
+  /// HTTP 4xx/5xx o respuesta inesperada) y no de las credenciales.
+  bool _esErrorDeConexion(Object e) {
+    if (e is TimeoutException ||
+        e is SocketException ||
+        e is HandshakeException ||
+        e is http.ClientException) {
+      return true;
+    }
+    // Mensajes que generan ApiClient y AuthRepository para fallas HTTP.
+    final texto = e.toString();
+    return texto.contains('Error del servidor') ||
+        texto.contains('Respuesta inesperada del servidor');
+  }
+
+  /// Elige el mensaje genérico: de conexión, o [mensajeLogico] para todo lo demás.
+  String _mensajeGenerico(Object e, String mensajeLogico) =>
+      _esErrorDeConexion(e) ? mensajeConexion : mensajeLogico;
+
+  /// Borra el error mostrado (por ejemplo, al pasar de login a registro).
+  void limpiarError() {
+    // copyWith sin "error" lo deja en null (ver AuthState.copyWith).
+    if (state.error != null) state = state.copyWith();
+  }
 
   Future<void> restaurarSesion() async {
     final s = await _repo.sesionGuardada();
@@ -87,7 +126,8 @@ class AuthController extends Notifier<AuthState> {
           ? AuthState(status: AuthStatus.esperandoCodigo, correo: correo)
           : await _estadoAutenticado(correo);
     } catch (e) {
-      state = state.copyWith(enProceso: false, error: _msg(e));
+      state = state.copyWith(
+          enProceso: false, error: _mensajeGenerico(e, mensajeCredenciales));
     }
   }
 
@@ -98,7 +138,10 @@ class AuthController extends Notifier<AuthState> {
       state = state.copyWith(enProceso: false);
       return true;
     } catch (e) {
-      state = state.copyWith(enProceso: false, error: _msg(e));
+      // Genérico también para "El usuario ya existe": no se confirma qué
+      // correos/usuarios están registrados.
+      state = state.copyWith(
+          enProceso: false, error: _mensajeGenerico(e, mensajeRegistro));
       return false;
     }
   }
@@ -110,7 +153,8 @@ class AuthController extends Notifier<AuthState> {
       await _repo.verificarCodigo(correo, codigo);
       state = await _estadoAutenticado(correo);
     } catch (e) {
-      state = state.copyWith(enProceso: false, error: _msg(e));
+      state = state.copyWith(
+          enProceso: false, error: _mensajeGenerico(e, mensajeCodigo));
     }
   }
 

@@ -19,6 +19,10 @@ Future<void> main() async {
 // (Sudoku, Perfil...) sin tener un BuildContext a la mano.
 final _navigatorKey = GlobalKey<NavigatorState>();
 
+// Llave del ScaffoldMessenger principal: permite mostrar SnackBars
+// (como "Acceso exitoso") aunque la pantalla de login ya no exista.
+final _messengerKey = GlobalKey<ScaffoldMessengerState>();
+
 class MindGamesApp extends ConsumerWidget {
   const MindGamesApp({super.key});
 
@@ -33,10 +37,22 @@ class MindGamesApp extends ConsumerWidget {
           nuevo.status == AuthStatus.noAutenticado) {
         _navigatorKey.currentState?.popUntil((ruta) => ruta.isFirst);
       }
+
+      // Login correcto (directo o tras el código 2FA): mensaje de acceso exitoso.
+      // No se muestra al restaurar una sesión guardada (estado "cargando").
+      final veniaDelLogin = anterior?.status == AuthStatus.noAutenticado ||
+          anterior?.status == AuthStatus.esperandoCodigo;
+      if (veniaDelLogin && nuevo.status == AuthStatus.autenticado) {
+        _messengerKey.currentState?.showSnackBar(const SnackBar(
+          content: Text('Acceso exitoso. ¡Bienvenido!'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      }
     });
 
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      scaffoldMessengerKey: _messengerKey,
       title: 'Mind Games',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),

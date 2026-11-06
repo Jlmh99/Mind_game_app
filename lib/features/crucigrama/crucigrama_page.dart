@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../data/partidas_repository.dart';
+import '../partidas/guardar_partida.dart';
 import 'crucigrama_controller.dart';
 import 'crucigrama_model.dart';
 import 'widgets/captura_teclado.dart';
@@ -30,10 +32,18 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage> {
     final estado = ref.watch(crucigramaControllerProvider);
     final controller = ref.read(crucigramaControllerProvider.notifier);
 
-    // Al completar: ocultamos el teclado y mostramos el diálogo una sola vez.
+    // Al completar (una sola vez por partida): ocultamos el teclado,
+    // guardamos en el servidor y mostramos el diálogo de victoria.
     ref.listen(crucigramaControllerProvider, (anterior, nuevo) {
       if (anterior?.terminado != true && nuevo.terminado) {
         _focoTeclado.unfocus();
+        guardarPartidaYAvisar(
+          context,
+          ref,
+          juego: juegoCrucigrama,
+          tiempoSegundos: nuevo.segundos,
+          puntuacion: nuevo.puntuacion,
+        );
         _mostrarVictoria(nuevo);
       }
     });
@@ -157,19 +167,33 @@ class _Marcador extends StatelessWidget {
     final textos = Theme.of(context).textTheme;
     final colores = Theme.of(context).colorScheme;
 
+    // Flexible + FittedBox(scaleDown): en pantallas angostas o con letra
+    // grande el contenido se reduce en vez de desbordarse.
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(children: [
-          const Icon(Icons.timer_outlined),
-          const SizedBox(width: 6),
-          Text(formatoTiempoCrucigrama(segundos), style: textos.titleLarge),
-        ]),
-        Row(children: [
-          Icon(Icons.close, color: colores.error),
-          const SizedBox(width: 6),
-          Text('Errores: $errores', style: textos.titleMedium),
-        ]),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(children: [
+              const Icon(Icons.timer_outlined),
+              const SizedBox(width: 6),
+              Text(formatoTiempoCrucigrama(segundos),
+                  style: textos.titleLarge),
+            ]),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(children: [
+              Icon(Icons.close, color: colores.error),
+              const SizedBox(width: 6),
+              Text('Errores: $errores', style: textos.titleMedium),
+            ]),
+          ),
+        ),
       ],
     );
   }
