@@ -66,6 +66,28 @@ void main() {
       expect(calcularPuntuacion(900, 5), 0); // nunca negativa
     });
 
+    // -------------------------------------------------------------------
+    // Caja blanca: calcularPuntuacion (sudoku_model.dart L75-78), CC = 2.
+    //   C1 (L77): puntos < 0   (ternario)
+    // -------------------------------------------------------------------
+    test('P1 - puntos negativos (C1 V): la puntuación se queda en 0', () {
+      expect(calcularPuntuacion(1001, 0), 0); // puntos == -1 (borde del ternario)
+      expect(calcularPuntuacion(951, 1), 0); // 1000 - 951 - 50 = -1
+      expect(calcularPuntuacion(900, 5), 0); // 1000 - 900 - 250 = -150
+    });
+
+    test('P2 - puntos == 0, límite exacto (C1 F): devuelve 0 sin pasar por la rama V', () {
+      expect(calcularPuntuacion(1000, 0), 0);
+      expect(calcularPuntuacion(900, 2), 0); // 1000 - 900 - 100 = 0
+    });
+
+    test('P2 - puntos positivos (C1 F): devuelve el valor calculado', () {
+      expect(calcularPuntuacion(999, 0), 1); // puntos == 1 (borde del ternario)
+      expect(calcularPuntuacion(949, 1), 1); // 1000 - 949 - 50 = 1
+      expect(calcularPuntuacion(120, 2), 780);
+      expect(calcularPuntuacion(0, 0), 1000);
+    });
+
     test('formatoTiempo usa m:ss', () {
       expect(formatoTiempo(0), '0:00');
       expect(formatoTiempo(65), '1:05');

@@ -1,11 +1,11 @@
-// URL del backend. Mientras no esté desplegado, usa tu máquina local:
-//  - Emulador Android  -> http://10.0.2.2:8080   (10.0.2.2 = tu PC)
-//  - Celular físico    -> http://IP-DE-TU-PC:8080 (misma red Wi-Fi)
-// Cuando lo despliegues en Render, cambia solo esta línea por https://...onrender.com
+// URL del backend desplegado en Render (HTTPS: el tráfico va cifrado).
+//
+// Para volver a probar con el backend local:
+//  - Emulador Android -> http://10.0.2.2:8080 (10.0.2.2 = tu PC)
 //  - Celular por USB con "adb reverse tcp:8080 tcp:8080" -> http://localhost:8080
-// PRESENTACIÓN: celular conectado por USB a la laptop con adb reverse.
-// Para volver al emulador, regresa esta línea a 'http://10.0.2.2:8080'.
-const String baseUrl = 'http://localhost:8080';
+// OJO: con http:// local también hay que volver a poner
+// android:usesCleartextTraffic="true" en AndroidManifest.xml.
+const String baseUrl = 'https://juegos-mentales-1jma.onrender.com';
 
 // Rutas reales del AuthController (Spring Boot)
 const String rutaRegistro = '/api/auth/register';
@@ -18,3 +18,10 @@ const String rutaMisPartidas = '/api/partidas/me';
 
 // Foto de perfil del usuario autenticado (GET y PUT, requiere token JWT)
 const String rutaFotoPerfil = '/api/users/me/foto';
+
+// Perfil del usuario autenticado (id, username, email, rol)
+const String rutaUsuarioActual = '/api/users/me';
+
+// Incidencias (requieren token JWT; los permisos los decide el backend)
+const String rutaIncidencias = '/api/incidencias';
+const String rutaAgentes = '/api/incidencias/agentes';

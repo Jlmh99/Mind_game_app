@@ -5,6 +5,7 @@ import '../../data/partidas_repository.dart';
 import '../auth/auth_controller.dart';
 import '../partidas/partidas_controller.dart';
 import 'foto_perfil_controller.dart';
+import 'usuario_actual_controller.dart';
 import 'widgets/avatar_foto.dart';
 
 /// Pantalla "Mi perfil": datos del usuario y sus últimas partidas.
@@ -26,6 +27,7 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
     Future.microtask(() {
       ref.read(partidasControllerProvider.notifier).cargar();
       ref.read(fotoPerfilControllerProvider.notifier).cargar();
+      ref.read(usuarioActualProvider.notifier).cargar();
     });
   }
 
@@ -36,6 +38,7 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
     final controller = ref.read(partidasControllerProvider.notifier);
     final foto = ref.watch(fotoPerfilControllerProvider);
     final fotoController = ref.read(fotoPerfilControllerProvider.notifier);
+    final usuario = ref.watch(usuarioActualProvider);
     final textos = Theme.of(context).textTheme;
 
     // Errores al tomar/subir la foto: se avisan con SnackBar (mensaje genérico).
@@ -53,13 +56,18 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
       body: SafeArea(
         // Deslizar hacia abajo vuelve a pedir las partidas al servidor.
         child: RefreshIndicator(
-          onRefresh: () => Future.wait([controller.cargar(), fotoController.cargar()]),
+          onRefresh: () => Future.wait([
+            controller.cargar(),
+            fotoController.cargar(),
+            ref.read(usuarioActualProvider.notifier).cargar(),
+          ]),
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               _Encabezado(
                 correo: auth.correo ?? '',
                 rol: auth.rol,
+                usuario: usuario,
                 foto: foto,
                 onTomarFoto: fotoController.tomarYSubir,
                 onReintentarFoto: fotoController.cargar,
@@ -116,7 +124,8 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
 /// Foto de perfil (con botón de cámara), correo y rol del usuario.
 class _Encabezado extends StatelessWidget {
   final String correo;
-  final String? rol;
+  final String? rol; // rol de la sesión (AuthState)
+  final UsuarioActualState usuario; // id y rol según el servidor
   final FotoPerfilState foto;
   final VoidCallback onTomarFoto;
   final VoidCallback onReintentarFoto;
@@ -124,6 +133,7 @@ class _Encabezado extends StatelessWidget {
   const _Encabezado({
     required this.correo,
     this.rol,
+    required this.usuario,
     required this.foto,
     required this.onTomarFoto,
     required this.onReintentarFoto,
@@ -159,12 +169,29 @@ class _Encabezado extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style:
                   textos.titleMedium?.copyWith(color: colores.onPrimaryContainer)),
-          if (rol != null) ...[
-            const SizedBox(height: 4),
-            Text('Rol: $rol',
-                style: textos.bodyMedium
-                    ?.copyWith(color: colores.onPrimaryContainer)),
-          ],
+          const SizedBox(height: 4),
+          // ID y rol del usuario autenticado: sirven para comprobar que dos
+          // dispositivos con cuentas distintas se identifican distinto.
+          Text(
+            usuario.usuario != null
+                ? 'ID: ${usuario.usuario!.id} · Rol: ${usuario.usuario!.rol}'
+                : 'Rol: ${rol ?? 'USER'}',
+            style: textos.bodyMedium?.copyWith(color: colores.onPrimaryContainer),
+          ),
+          if (usuario.error != null)
+            Text(usuario.error!,
+                style: textos.bodySmall?.copyWith(color: colores.error)),
+          // El rol cambió en el servidor (por ejemplo, lo promovieron a AGENTE):
+          // la app usa el rol de la sesión hasta que vuelva a iniciar sesión.
+          if (usuario.usuario != null && rol != null && usuario.usuario!.rol != rol)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Tu rol cambió. Cierra sesión y vuelve a entrar para ver las nuevas opciones.',
+                textAlign: TextAlign.center,
+                style: textos.bodySmall?.copyWith(color: colores.onPrimaryContainer),
+              ),
+            ),
         ]),
       ),
     );

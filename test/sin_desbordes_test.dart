@@ -12,6 +12,14 @@ import 'package:mindgames_app/features/home/home_page.dart';
 import 'package:mindgames_app/features/mobileconnect/canal_controller.dart';
 import 'package:mindgames_app/features/mobileconnect/mobileconnect_page.dart';
 import 'package:mindgames_app/features/perfil/perfil_page.dart';
+import 'package:mindgames_app/data/incidencias_repository.dart';
+import 'package:mindgames_app/data/usuario_repository.dart';
+import 'package:mindgames_app/data/mensajes_repository.dart';
+import 'package:mindgames_app/features/incidencias/chat/chat_incidencia_page.dart';
+import 'package:image/image.dart' as img;
+import 'package:mindgames_app/features/incidencias/crear_incidencia_page.dart';
+import 'package:mindgames_app/features/incidencias/detalle_incidencia_page.dart';
+import 'package:mindgames_app/features/incidencias/incidencias_page.dart';
 import 'package:mindgames_app/features/sudoku/sudoku_page.dart';
 
 // Revisión final: cada pantalla se dibuja en celulares verticales pequeños,
@@ -23,7 +31,7 @@ class _AuthFalso extends AuthController {
   AuthState build() => const AuthState(
         status: AuthStatus.autenticado,
         correo: 'un.correo.bastante.largo.para.probar@universidad.edu.mx',
-        rol: 'USER',
+        rol: 'ADMIN', // ADMIN: muestra todos los controles de incidencias
         // Error largo para comprobar que también cabe en login/registro.
         error: 'No se pudo conectar, intenta de nuevo',
       );
@@ -49,6 +57,77 @@ class _PartidasFalsas implements PartidasRepository {
             fecha: DateTime(2026, 12, 31, 23, 59),
           ),
       ];
+}
+
+/// Incidencia con textos largos para el peor caso de diseño.
+final _incidenciaLarga = Incidencia(
+  id: 12345,
+  titulo: 'El crucigrama no valida la palabra aunque esté bien escrita en mayúsculas',
+  descripcion: 'Descripción larga ' * 20,
+  estado: EstadoIncidencia.enProceso,
+  prioridad: PrioridadIncidencia.critica,
+  creadoPor: const UsuarioResumen(id: 1, username: 'usuario_con_nombre_largo', email: 'a@b.com'),
+  asignadoA: const UsuarioResumen(id: 3, username: 'agente_con_nombre_muy_largo', email: 'c@d.com'),
+  fechaCreacion: DateTime(2026, 12, 31, 23, 59),
+  fechaActualizacion: DateTime(2026, 12, 31, 23, 59),
+  version: 999,
+);
+
+class _IncidenciasFalsas implements IncidenciasRepository {
+  @override
+  ApiClient get api => throw UnimplementedError();
+  @override
+  Future<List<Incidencia>> listar() async => List.filled(6, _incidenciaLarga);
+  @override
+  Future<Incidencia> obtener(int id) async => _incidenciaLarga;
+  @override
+  Future<List<UsuarioResumen>> agentes() async =>
+      [const UsuarioResumen(id: 3, username: 'agente_con_nombre_muy_largo', email: 'c@d.com')];
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+/// Mensajes con nombres largos, una imagen y un PDF (peor caso del chat).
+class _MensajesFalsos implements MensajesRepository {
+  @override
+  ApiClient get api => throw UnimplementedError();
+  @override
+  Future<List<MensajeIncidencia>> listar(int incidenciaId, CanalChat canal) async => [
+        for (var i = 0; i < 6; i++)
+          MensajeIncidencia(
+            id: i + 1,
+            incidenciaId: incidenciaId,
+            emisor: UsuarioResumen(
+                id: i,
+                username: 'participante_con_nombre_largo_$i',
+                email: 'p$i@x.com',
+                rol: i.isEven ? 'USER' : 'ADMIN'),
+            texto: 'Mensaje con bastante texto para ver cómo se acomoda la burbuja $i',
+            canal: canal,
+            fecha: DateTime(2026, 11, 11, 9, i),
+            adjunto: i == 1
+                ? AdjuntoMensaje(
+                    nombre: 'captura.png',
+                    tipo: 'image/png',
+                    bytes: img.encodePng(img.Image(width: 8, height: 8)))
+                : i == 3
+                    ? AdjuntoMensaje(
+                        nombre: 'documento_con_un_nombre_de_archivo_muy_largo.pdf',
+                        tipo: 'application/pdf',
+                        bytes: Uint8List.fromList('%PDF-1.4'.codeUnits))
+                    : null,
+          ),
+      ];
+  @override
+  dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
+}
+
+class _UsuarioFalso implements UsuarioRepository {
+  @override
+  ApiClient get api => throw UnimplementedError();
+  @override
+  Future<UsuarioActual> actual() async =>
+      const UsuarioActual(id: 123456, username: 'u', email: 'u@x.com', rol: 'AGENTE');
 }
 
 class _FotoFalsa implements FotoPerfilRepository {
@@ -87,6 +166,10 @@ final Map<String, Widget Function()> _vistas = {
   'Sudoku': () => const SudokuPage(),
   'Crucigrama': () => const CrucigramaPage(),
   'MobileConnect': () => const MobileConnectPage(),
+  'Incidencias': () => const IncidenciasPage(),
+  'Nueva incidencia': () => const CrearIncidenciaPage(),
+  'Detalle de incidencia': () => const DetalleIncidenciaPage(id: 12345),
+  'Chat de incidencia': () => ChatIncidenciaPage(incidencia: _incidenciaLarga),
 };
 
 void main() {
@@ -104,6 +187,9 @@ void main() {
           authControllerProvider.overrideWith(_AuthFalso.new),
           partidasRepositoryProvider.overrideWithValue(_PartidasFalsas()),
           fotoPerfilRepositoryProvider.overrideWithValue(_FotoFalsa()),
+          incidenciasRepositoryProvider.overrideWithValue(_IncidenciasFalsas()),
+          usuarioRepositoryProvider.overrideWithValue(_UsuarioFalso()),
+          mensajesRepositoryProvider.overrideWithValue(_MensajesFalsos()),
         ]);
         addTearDown(contenedor.dispose);
 

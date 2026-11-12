@@ -7,6 +7,12 @@ String formatoDuracion(int segundos) {
   return '$min:${seg.toString().padLeft(2, '0')}';
 }
 
+/// Hora -> "hh:mm:ss" (ej. "09:05:07"), para "última actualización".
+String formatoHora(DateTime f) {
+  String dos(int n) => n.toString().padLeft(2, '0');
+  return '${dos(f.hour)}:${dos(f.minute)}:${dos(f.second)}';
+}
+
 /// Fecha -> "dd/mm/aaaa hh:mm" (ej. "05/11/2026 21:30").
 String formatoFecha(DateTime f) {
   String dos(int n) => n.toString().padLeft(2, '0');

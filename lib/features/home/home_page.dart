@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/auth_controller.dart';
 import '../crucigrama/crucigrama_page.dart';
+import '../incidencias/incidencias_page.dart';
 import '../mobileconnect/mobileconnect_page.dart';
 import '../perfil/perfil_page.dart';
 import '../sudoku/sudoku_page.dart';
@@ -62,6 +63,11 @@ class HomePage extends ConsumerWidget {
               titulo: 'MobileConnect',
               icono: Icons.devices_outlined,
               onTap: () => _abrir(context, const MobileConnectPage()),
+            ),
+            _Acceso(
+              titulo: 'Incidencias',
+              icono: Icons.support_agent,
+              onTap: () => _abrir(context, const IncidenciasPage()),
             ),
             const SizedBox(height: 24),
 
