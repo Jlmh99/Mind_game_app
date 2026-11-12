@@ -15,28 +15,35 @@ String canalAApi(CanalChat c) => c == CanalChat.publico ? 'PUBLICO' : 'INTERNO';
 CanalChat canalDesdeApi(String? s) => s == 'INTERNO' ? CanalChat.interno : CanalChat.publico;
 
 /// Archivo adjunto de un mensaje (JPG, PNG o PDF).
+///
+/// Desde la Práctica 12 el listado del servidor NO trae el contenido: solo
+/// nombre, tipo y tamaño. Los bytes de una imagen se descargan aparte, una
+/// sola vez, con adjuntosCacheProvider. [bytes] solo existe en un adjunto
+/// local (el que el usuario eligió para enviar).
 class AdjuntoMensaje {
   final String nombre;
   final String tipo; // image/jpeg, image/png o application/pdf
-  final Uint8List bytes; // ya decodificado del Base64 (se decodifica una sola vez)
+  final int tamano; // bytes reales del archivo
+  final Uint8List? bytes; // solo en adjuntos locales; null si viene del servidor
 
-  const AdjuntoMensaje({required this.nombre, required this.tipo, required this.bytes});
+  /// Adjunto local, elegido en el teléfono (se conocen sus bytes).
+  AdjuntoMensaje({required this.nombre, required this.tipo, required Uint8List this.bytes})
+      : tamano = bytes.length;
+
+  /// Adjunto que viene del servidor: solo sus datos, sin contenido.
+  const AdjuntoMensaje.remoto({required this.nombre, required this.tipo, required this.tamano})
+      : bytes = null;
 
   bool get esImagen => tipo.startsWith('image/');
 
+  /// {"nombre", "tipo", "tamano"} del listado; null si el mensaje no tiene adjunto.
   static AdjuntoMensaje? opcional(dynamic j) {
     if (j is! Map<String, dynamic>) return null;
-    final contenido = j['contenido'];
-    if (contenido is! String || contenido.isEmpty) return null;
-    try {
-      return AdjuntoMensaje(
-        nombre: (j['nombre'] ?? 'adjunto').toString(),
-        tipo: (j['tipo'] ?? '').toString(),
-        bytes: base64Decode(contenido),
-      );
-    } on FormatException {
-      return null; // Base64 dañado: se muestra el mensaje sin adjunto
-    }
+    return AdjuntoMensaje.remoto(
+      nombre: (j['nombre'] ?? 'adjunto').toString(),
+      tipo: (j['tipo'] ?? '').toString(),
+      tamano: (j['tamano'] is num) ? (j['tamano'] as num).toInt() : 0,
+    );
   }
 }
 
@@ -67,7 +74,7 @@ class MensajeIncidencia {
         texto: (j['texto'] ?? '').toString(),
         canal: canalDesdeApi(j['canal']?.toString()),
         fecha: DateTime.parse(j['fecha'] as String),
-        adjunto: AdjuntoMensaje.opcional(j['adjunto']),
+        adjunto: j['tieneAdjunto'] == false ? null : AdjuntoMensaje.opcional(j['adjunto']),
       );
 }
 
@@ -88,7 +95,13 @@ class MensajesRepository {
     throw Exception('Respuesta inesperada del servidor');
   }
 
-  /// Envía el mensaje con su canal. El adjunto se manda en Base64.
+  /// Bytes del adjunto de un mensaje (GET .../mensajes/{mid}/adjunto, binario).
+  /// El servidor revisa los permisos con el canal real del mensaje.
+  Future<Uint8List> descargarAdjunto(int incidenciaId, int mensajeId) => api.getBytes(
+      '$rutaIncidencias/$incidenciaId/mensajes/$mensajeId/adjunto',
+      autenticado: true);
+
+  /// Envía el mensaje con su canal. El adjunto (local) se manda en Base64.
   Future<MensajeIncidencia> enviar(
     int incidenciaId, {
     required String texto,
@@ -104,7 +117,7 @@ class MensajesRepository {
           'adjunto': {
             'nombre': adjunto.nombre,
             'tipo': adjunto.tipo,
-            'contenido': base64Encode(adjunto.bytes),
+            'contenido': base64Encode(adjunto.bytes!),
           },
       },
       autenticado: true,

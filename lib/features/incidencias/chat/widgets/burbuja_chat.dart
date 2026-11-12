@@ -1,4 +1,7 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../../data/adjuntos_cache.dart';
 import '../../../../data/mensajes_repository.dart';
 
 /// Hora de envío en formato HH:mm.
@@ -52,7 +55,7 @@ class BurbujaChat extends StatelessWidget {
               ),
               if (mensaje.adjunto != null) ...[
                 const SizedBox(height: 4),
-                _VistaAdjunto(adjunto: mensaje.adjunto!),
+                _VistaAdjunto(mensaje: mensaje),
               ],
               const SizedBox(height: 2),
               Text(mensaje.texto, style: textos.bodyLarge),
@@ -68,34 +71,100 @@ class BurbujaChat extends StatelessWidget {
 }
 
 /// Imagen en miniatura (se amplía al tocarla) o ícono con el nombre del PDF.
-class _VistaAdjunto extends StatelessWidget {
-  final AdjuntoMensaje adjunto;
-  const _VistaAdjunto({required this.adjunto});
+///
+/// Práctica 12: la imagen ya no viene en el listado; se pide UNA vez a
+/// adjuntosCacheProvider por id de mensaje. Los PDF no se descargan (solo se
+/// muestran nombre y tamaño, que sí vienen en el listado).
+class _VistaAdjunto extends ConsumerStatefulWidget {
+  final MensajeIncidencia mensaje;
+  const _VistaAdjunto({required this.mensaje});
+
+  @override
+  ConsumerState<_VistaAdjunto> createState() => _VistaAdjuntoState();
+}
+
+class _VistaAdjuntoState extends ConsumerState<_VistaAdjunto> {
+  AdjuntoMensaje get _adjunto => widget.mensaje.adjunto!;
+
+  /// Solo se descarga una imagen que no tenga bytes locales.
+  bool get _hayQueDescargar => _adjunto.esImagen && _adjunto.bytes == null;
+
+  @override
+  void initState() {
+    super.initState();
+    _pedir();
+  }
+
+  @override
+  void didUpdateWidget(covariant _VistaAdjunto anterior) {
+    super.didUpdateWidget(anterior);
+    if (anterior.mensaje.id != widget.mensaje.id) _pedir();
+  }
+
+  // Fuera del build: un provider no se puede modificar mientras se construye.
+  void _pedir() {
+    if (!_hayQueDescargar) return;
+    final m = widget.mensaje;
+    Future.microtask(() {
+      if (mounted) ref.read(adjuntosCacheProvider.notifier).cargar(m.incidenciaId, m.id);
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (adjunto.esImagen) {
-      return GestureDetector(
-        onTap: () => showDialog<void>(
-          context: context,
-          builder: (_) => Dialog(
-            child: InteractiveViewer(child: Image.memory(adjunto.bytes, fit: BoxFit.contain)),
-          ),
+    final adjunto = _adjunto;
+    if (!adjunto.esImagen) return ArchivoPdf(nombre: adjunto.nombre, bytes: adjunto.tamano);
+
+    final local = adjunto.bytes;
+    final estado = local != null
+        ? AsyncData<Uint8List>(local)
+        : ref.watch(adjuntosCacheProvider.select((c) => c[widget.mensaje.id])) ??
+            const AsyncLoading<Uint8List>();
+
+    return switch (estado) {
+      AsyncData(:final value) => _Miniatura(bytes: value),
+      AsyncError() => IconButton(
+          tooltip: 'No se pudo cargar la imagen. Toca para reintentar',
+          icon: const Icon(Icons.broken_image_outlined, size: 48),
+          onPressed: () => ref
+              .read(adjuntosCacheProvider.notifier)
+              .cargar(widget.mensaje.incidenciaId, widget.mensaje.id),
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(8),
-          child: Image.memory(
-            adjunto.bytes,
-            height: 160,
-            fit: BoxFit.cover,
-            cacheHeight: 320, // decodifica una versión pequeña: ahorra memoria
-            gaplessPlayback: true,
-            errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, size: 48),
-          ),
+      _ => const SizedBox(
+          height: 160,
+          width: 160,
+          child: Center(child: CircularProgressIndicator()),
         ),
-      );
-    }
-    return ArchivoPdf(nombre: adjunto.nombre, bytes: adjunto.bytes.length);
+    };
+  }
+}
+
+/// Miniatura de 160 px de alto; al tocarla se abre la imagen completa.
+class _Miniatura extends StatelessWidget {
+  final Uint8List bytes;
+  const _Miniatura({required this.bytes});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (_) => Dialog(
+          child: InteractiveViewer(child: Image.memory(bytes, fit: BoxFit.contain)),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.memory(
+          bytes,
+          height: 160,
+          fit: BoxFit.cover,
+          cacheHeight: 320, // decodifica una versión pequeña: ahorra memoria
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => const Icon(Icons.broken_image_outlined, size: 48),
+        ),
+      ),
+    );
   }
 }
 

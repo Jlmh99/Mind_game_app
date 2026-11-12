@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import '../data/local/sesion_dao.dart';
 import 'api_config.dart';
@@ -32,6 +33,17 @@ class ApiClient {
         .get(Uri.parse('$baseUrl$ruta'), headers: headers)
         .timeout(_timeout);
     return _procesar(resp, autenticado);
+  }
+
+  /// GET de un archivo binario (por ejemplo, el adjunto de un mensaje).
+  /// Mismo timeout y mismos errores que [get], pero devuelve los bytes tal cual.
+  Future<Uint8List> getBytes(String ruta, {bool autenticado = false}) async {
+    final headers = await _headers(autenticado);
+    final resp = await _http
+        .get(Uri.parse('$baseUrl$ruta'), headers: headers)
+        .timeout(_timeout);
+    _revisarEstado(resp, autenticado);
+    return resp.bodyBytes;
   }
 
   /// POST a [ruta] con [cuerpo] en JSON.
@@ -86,8 +98,21 @@ class ApiClient {
   ///  - si el cuerpo es JSON (objeto o lista) se devuelve tal cual,
   ///  - si es texto plano se envuelve en {'mensaje': texto}.
   dynamic _procesar(http.Response resp, bool autenticado) {
+    _revisarEstado(resp, autenticado);
     final texto = utf8.decode(resp.bodyBytes);
 
+    try {
+      final datos = jsonDecode(texto);
+      if (datos is Map<String, dynamic> || datos is List) return datos;
+    } catch (_) {
+      // No era JSON: lo tratamos como texto plano.
+    }
+    return {'mensaje': texto};
+  }
+
+  /// Lanza la excepción que corresponde al código HTTP (lo comparten [get],
+  /// [getBytes], [post], [put] y [delete]).
+  void _revisarEstado(http.Response resp, bool autenticado) {
     if (autenticado) {
       // 401: el backend no reconoce la sesión (usuario borrado/deshabilitado).
       if (resp.statusCode == 401) throw const SesionExpiradaException();
@@ -98,6 +123,7 @@ class ApiClient {
       //  - Permiso denegado (incidencias): lo responde ErrorApi CON
       //    {"mensaje": "..."} -> la sesión sigue bien, solo falta permiso.
       if (resp.statusCode == 403) {
+        final texto = utf8.decode(resp.bodyBytes, allowMalformed: true);
         if (_tieneMensaje(texto)) throw const PermisoDenegadoException();
         throw const SesionExpiradaException();
       }
@@ -107,14 +133,6 @@ class ApiClient {
       // Solo se guarda el código, nunca el cuerpo de la respuesta.
       throw ErrorHttpException(resp.statusCode);
     }
-
-    try {
-      final datos = jsonDecode(texto);
-      if (datos is Map<String, dynamic> || datos is List) return datos;
-    } catch (_) {
-      // No era JSON: lo tratamos como texto plano.
-    }
-    return {'mensaje': texto};
   }
 
   /// true si el cuerpo es un JSON con la clave "mensaje" (respuesta de ErrorApi).

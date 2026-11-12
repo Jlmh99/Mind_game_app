@@ -294,11 +294,11 @@ class _Redactor extends StatelessWidget {
                           alignment: Alignment.centerLeft,
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: Image.memory(adjunto!.bytes,
+                            child: Image.memory(adjunto!.bytes!,
                                 height: 72, cacheHeight: 144, fit: BoxFit.cover),
                           ),
                         )
-                      : ArchivoPdf(nombre: adjunto!.nombre, bytes: adjunto!.bytes.length),
+                      : ArchivoPdf(nombre: adjunto!.nombre, bytes: adjunto!.tamano),
                 ),
                 IconButton(
                   tooltip: 'Quitar adjunto',

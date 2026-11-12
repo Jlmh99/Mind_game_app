@@ -105,19 +105,23 @@ class _MensajesFalsos implements MensajesRepository {
             texto: 'Mensaje con bastante texto para ver cómo se acomoda la burbuja $i',
             canal: canal,
             fecha: DateTime(2026, 11, 11, 9, i),
+            // Como los manda el servidor desde la Práctica 12: sin contenido.
             adjunto: i == 1
-                ? AdjuntoMensaje(
-                    nombre: 'captura.png',
-                    tipo: 'image/png',
-                    bytes: img.encodePng(img.Image(width: 8, height: 8)))
+                ? AdjuntoMensaje.remoto(nombre: 'captura.png', tipo: 'image/png', tamano: _png.length)
                 : i == 3
-                    ? AdjuntoMensaje(
+                    ? const AdjuntoMensaje.remoto(
                         nombre: 'documento_con_un_nombre_de_archivo_muy_largo.pdf',
                         tipo: 'application/pdf',
-                        bytes: Uint8List.fromList('%PDF-1.4'.codeUnits))
+                        tamano: 8)
                     : null,
           ),
       ];
+
+  /// La imagen se descarga aparte (adjuntosCacheProvider).
+  @override
+  Future<Uint8List> descargarAdjunto(int incidenciaId, int mensajeId) async => _png;
+
+  static final Uint8List _png = img.encodePng(img.Image(width: 8, height: 8));
   @override
   dynamic noSuchMethod(Invocation i) => throw UnimplementedError();
 }

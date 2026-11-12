@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../data/adjuntos_cache.dart';
 import '../../../data/mensajes_repository.dart';
 import '../../auth/auth_controller.dart';
 import '../incidencias_comun.dart';
@@ -171,6 +172,12 @@ class ChatController extends AutoDisposeFamilyNotifier<ChatState, ClaveChat> {
     final r = await ejecutarAccion(ref, () async {
       enviado = await _repo.enviar(arg.$1, texto: limpio, canal: arg.$2, adjunto: adjunto);
     });
+    // Los bytes del adjunto propio ya están en el teléfono: se guardan en la
+    // caché para no volver a descargarlos (Práctica 12).
+    final bytes = adjunto?.bytes;
+    if (r == ResultadoAccion.ok && bytes != null && adjunto!.esImagen) {
+      ref.read(adjuntosCacheProvider.notifier).sembrar(enviado.id, bytes);
+    }
     if (!_activo) return r;
 
     final yaEsta = r == ResultadoAccion.ok && state.mensajes.any((m) => m.id == enviado.id);

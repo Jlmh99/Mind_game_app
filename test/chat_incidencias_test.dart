@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:mindgames_app/core/api_client.dart';
 import 'package:mindgames_app/core/errores_api.dart';
 import 'package:mindgames_app/core/sesion_expirada_exception.dart';
+import 'package:mindgames_app/data/adjuntos_cache.dart';
 import 'package:mindgames_app/data/incidencias_repository.dart';
 import 'package:mindgames_app/data/local/sesion.dart';
 import 'package:mindgames_app/data/local/sesion_dao.dart';
@@ -61,8 +62,10 @@ class _RepoFalso implements MensajesRepository {
     CanalChat.interno: [],
   };
   Object? falla; // excepción a lanzar al listar
+  Object? fallaDescarga; // excepción a lanzar al descargar un adjunto
   int llamadasListar = 0;
   int llamadasEnviar = 0;
+  int llamadasDescargar = 0;
   AdjuntoMensaje? ultimoAdjunto;
   late UsuarioResumen yo;
 
@@ -81,11 +84,26 @@ class _RepoFalso implements MensajesRepository {
       {required String texto, required CanalChat canal, AdjuntoMensaje? adjunto}) async {
     llamadasEnviar++;
     ultimoAdjunto = adjunto;
-    final m = _msg(100 + llamadasEnviar, yo, texto, canal: canal, adjunto: adjunto);
+    // Como el servidor desde la Práctica 12: la respuesta trae el adjunto SIN contenido.
+    final m = _msg(100 + llamadasEnviar, yo, texto,
+        canal: canal,
+        adjunto: adjunto == null
+            ? null
+            : AdjuntoMensaje.remoto(nombre: adjunto.nombre, tipo: adjunto.tipo, tamano: adjunto.tamano));
     servidor[canal]!.add(m);
     return m;
   }
+
+  @override
+  Future<Uint8List> descargarAdjunto(int incidenciaId, int mensajeId) async {
+    llamadasDescargar++;
+    if (fallaDescarga != null) throw fallaDescarga!;
+    return _png;
+  }
 }
+
+/// Imagen que llega del servidor sin contenido (se descarga aparte).
+final _imagenRemota = AdjuntoMensaje.remoto(nombre: 'c.png', tipo: 'image/png', tamano: _png.length);
 
 class _AuthFalso extends AuthController {
   _AuthFalso(this.usuario);
@@ -101,6 +119,10 @@ class _AuthFalso extends AuthController {
     sesionExpiradaLlamada = true;
     state = const AuthState(status: AuthStatus.noAutenticado, error: 'Tu sesión expiró');
   }
+
+  /// Simula cerrar sesión e iniciar con otra cuenta en el mismo teléfono.
+  void cambiarUsuario(UsuarioResumen otro) =>
+      state = AuthState(status: AuthStatus.autenticado, correo: otro.email, rol: otro.rol);
 }
 
 class _SelectorFalso extends SelectorArchivos {
@@ -141,17 +163,36 @@ class _ApiQueAnota extends ApiClient {
   String? ruta;
   Map<String, dynamic>? cuerpo;
 
+  // Formato del backend desde la Práctica 12: sin "contenido".
   Map<String, dynamic> _respuesta(String canal) => {
         'id': 5, 'incidenciaId': 7, 'texto': 'Captura', 'canal': canal,
         'fecha': '2026-11-11T09:07:00.123456',
         'emisor': {'id': 1, 'username': 'u', 'email': 'u@x.com', 'rol': 'USER'},
-        'adjunto': {'nombre': 'c.png', 'tipo': 'image/png', 'contenido': base64Encode(_png)},
+        'tieneAdjunto': true,
+        'adjunto': {'nombre': 'c.png', 'tipo': 'image/png', 'tamano': _png.length},
+      };
+
+  Map<String, dynamic> _sinAdjunto() => {
+        'id': 6, 'incidenciaId': 7, 'texto': 'Hola', 'canal': 'PUBLICO',
+        'fecha': '2026-11-11T09:08:00',
+        'emisor': {'id': 1, 'username': 'u', 'email': 'u@x.com', 'rol': 'USER'},
+        'tieneAdjunto': false,
+        'adjunto': null,
       };
 
   @override
   Future<dynamic> get(String ruta, {bool autenticado = false}) async {
     this.ruta = ruta;
-    return [_respuesta('INTERNO')];
+    return [_respuesta('INTERNO'), _sinAdjunto()];
+  }
+
+  bool? bytesAutenticado;
+
+  @override
+  Future<Uint8List> getBytes(String ruta, {bool autenticado = false}) async {
+    this.ruta = ruta;
+    bytesAutenticado = autenticado;
+    return _png;
   }
 
   @override
@@ -165,12 +206,24 @@ class _ApiQueAnota extends ApiClient {
 void main() {
   // ---------------- Repositorio ----------------
   group('MensajesRepository', () {
-    test('listar pide el canal y decodifica el adjunto', () async {
+    // Práctica 12: el listado ya no trae el Base64, así que no se decodifica nada.
+    test('listar pide el canal y trae nombre/tipo/tamaño del adjunto, sin bytes', () async {
       final api = _ApiQueAnota();
       final lista = await MensajesRepository(api).listar(7, CanalChat.interno);
       expect(api.ruta, '/api/incidencias/7/mensajes?canal=INTERNO');
-      expect(lista.single.canal, CanalChat.interno);
-      expect(lista.single.adjunto!.bytes, _png);
+      expect(lista.first.canal, CanalChat.interno);
+      final a = lista.first.adjunto!;
+      expect((a.nombre, a.tipo, a.tamano), ('c.png', 'image/png', _png.length));
+      expect(a.bytes, isNull);
+      expect(lista.last.adjunto, isNull); // tieneAdjunto: false
+    });
+
+    test('descargarAdjunto pide la ruta binaria autenticada', () async {
+      final api = _ApiQueAnota();
+      final bytes = await MensajesRepository(api).descargarAdjunto(7, 5);
+      expect(api.ruta, '/api/incidencias/7/mensajes/5/adjunto');
+      expect(api.bytesAutenticado, isTrue);
+      expect(bytes, _png);
     });
 
     test('enviar manda texto, canal y adjunto en Base64', () async {
@@ -303,6 +356,82 @@ void main() {
     });
   });
 
+  // ---------------- Caché de adjuntos (Práctica 12) ----------------
+  group('adjuntosCacheProvider', () {
+    Future<void> esperar() => Future<void>.delayed(Duration.zero);
+
+    test('cada id se descarga una sola vez aunque se pida varias veces', () async {
+      final repo = _RepoFalso();
+      final c = ProviderContainer(overrides: _overrides(repo, _agente));
+      final cache = c.read(adjuntosCacheProvider.notifier);
+      cache.cargar(7, 5);
+      cache.cargar(7, 5); // todavía en camino: no se pide otra vez
+      await esperar();
+      cache.cargar(7, 5); // ya está lista: tampoco
+      expect(repo.llamadasDescargar, 1);
+      final primera = c.read(adjuntosCacheProvider)[5]!.value!;
+      expect(primera, _png);
+      // Siempre la MISMA instancia: Image.memory no vuelve a decodificar.
+      expect(identical(c.read(adjuntosCacheProvider)[5]!.value, primera), isTrue);
+      c.dispose();
+    });
+
+    test('si la descarga falla, queda en error y se puede reintentar', () async {
+      final repo = _RepoFalso()..fallaDescarga = const ErrorHttpException(500);
+      final c = ProviderContainer(overrides: _overrides(repo, _agente));
+      final cache = c.read(adjuntosCacheProvider.notifier);
+      cache.cargar(7, 5);
+      await esperar();
+      expect(c.read(adjuntosCacheProvider)[5]!.hasError, isTrue);
+
+      repo.fallaDescarga = null;
+      cache.cargar(7, 5);
+      await esperar();
+      expect(repo.llamadasDescargar, 2);
+      expect(c.read(adjuntosCacheProvider)[5]!.value, _png);
+      c.dispose();
+    });
+
+    test('se vacía al cambiar de usuario (un USER no ve bytes que bajó un AGENTE)', () async {
+      final repo = _RepoFalso();
+      final c = ProviderContainer(overrides: _overrides(repo, _agente));
+      final sub = c.listen(adjuntosCacheProvider, (_, _) {});
+      c.read(adjuntosCacheProvider.notifier).cargar(7, 5);
+      await esperar();
+      expect(c.read(adjuntosCacheProvider), contains(5));
+
+      (c.read(authControllerProvider.notifier) as _AuthFalso).cambiarUsuario(_creador);
+      expect(c.read(adjuntosCacheProvider), isEmpty);
+      sub.close();
+      c.dispose();
+    });
+
+    test('una descarga de la sesión anterior que termina tarde no se guarda', () async {
+      final repo = _RepoFalso();
+      final c = ProviderContainer(overrides: _overrides(repo, _agente));
+      final sub = c.listen(adjuntosCacheProvider, (_, _) {});
+      c.read(adjuntosCacheProvider.notifier).cargar(7, 5); // queda en camino
+      (c.read(authControllerProvider.notifier) as _AuthFalso).cambiarUsuario(_creador);
+      await esperar();
+      expect(c.read(adjuntosCacheProvider), isEmpty);
+      sub.close();
+      c.dispose();
+    });
+
+    testWidgets('al enviar una imagen se siembra la caché y no se descarga', (t) async {
+      final repo = _RepoFalso();
+      final c = ProviderContainer(overrides: _overrides(repo, _creador));
+      final sub = c.listen(chatProvider((7, CanalChat.publico)), (_, _) {});
+      await t.pump();
+      await c
+          .read(chatProvider((7, CanalChat.publico)).notifier)
+          .enviar('Captura', adjunto: AdjuntoMensaje(nombre: 'c.png', tipo: 'image/png', bytes: _png));
+      expect(c.read(adjuntosCacheProvider)[101]!.value, _png);
+      expect(repo.llamadasDescargar, 0);
+      await _cerrar(t, sub, c);
+    });
+  });
+
   // ---------------- Pantalla ----------------
   group('pantalla del chat', () {
     Future<_RepoFalso> montar(WidgetTester t, UsuarioResumen yo,
@@ -396,6 +525,52 @@ void main() {
       await t.tap(find.text('Imagen de la galería'));
       await t.pump();
       expect(find.text('Formato no permitido (usa JPG, PNG o PDF)'), findsOneWidget);
+      await salir(t);
+    });
+
+    // Práctica 12: antes cada recarga (3 s) volvía a traer y decodificar las imágenes.
+    testWidgets('AGENTE: la imagen se descarga UNA vez aunque el chat se recargue cada 3 s',
+        (t) async {
+      final repo = _RepoFalso();
+      repo.servidor[CanalChat.publico]!.add(_msg(2, _creador, 'Captura', adjunto: _imagenRemota));
+      await montar(t, _agente, repo: repo);
+      await t.pump();
+      expect(find.byType(Image), findsOneWidget);
+
+      for (var i = 0; i < 3; i++) {
+        await t.pump(const Duration(seconds: 3));
+      }
+      expect(repo.llamadasListar, greaterThanOrEqualTo(4));
+      expect(repo.llamadasDescargar, 1);
+      expect(find.byType(Image), findsOneWidget);
+      await salir(t);
+    });
+
+    testWidgets('el PDF no se descarga: muestra nombre y tamaño del listado', (t) async {
+      final repo = _RepoFalso();
+      repo.servidor[CanalChat.publico]!.add(_msg(2, _creador, 'Manual',
+          adjunto: const AdjuntoMensaje.remoto(nombre: 'manual.pdf', tipo: 'application/pdf', tamano: 2048)));
+      await montar(t, _agente, repo: repo);
+      await t.pump();
+      expect(find.text('manual.pdf'), findsOneWidget);
+      expect(find.text('PDF · 2.0 KB'), findsOneWidget);
+      expect(repo.llamadasDescargar, 0);
+      await salir(t);
+    });
+
+    testWidgets('si la imagen no se pudo bajar, se puede reintentar tocándola', (t) async {
+      final repo = _RepoFalso()..fallaDescarga = const ErrorHttpException(500);
+      repo.servidor[CanalChat.publico]!.add(_msg(2, _creador, 'Captura', adjunto: _imagenRemota));
+      await montar(t, _creador, repo: repo);
+      await t.pump();
+      expect(find.byIcon(Icons.broken_image_outlined), findsOneWidget);
+
+      repo.fallaDescarga = null;
+      await t.tap(find.byIcon(Icons.broken_image_outlined));
+      await t.pump();
+      await t.pump();
+      expect(find.byType(Image), findsOneWidget);
+      expect(repo.llamadasDescargar, 2);
       await salir(t);
     });
 
