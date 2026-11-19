@@ -71,10 +71,11 @@ bool estaCompleto(List<List<int>> tablero) {
   return true;
 }
 
-/// Puntuación = max(0, 1000 - segundos - 50 * errores).
+/// Puntuación = 1000 - segundos - 50 * errores, acotada entre 0 y 1000
+/// (con tiempo o errores negativos nunca supera la partida perfecta).
 int calcularPuntuacion(int segundos, int errores) {
   final puntos = 1000 - segundos - 50 * errores;
-  return puntos < 0 ? 0 : puntos;
+  return puntos.clamp(0, 1000);
 }
 
 /// Convierte segundos a "m:ss" (igual que formatoTiempo() de la web).

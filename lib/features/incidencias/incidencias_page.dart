@@ -52,7 +52,12 @@ class IncidenciasPage extends ConsumerWidget {
               BarraSincronizacion(ultima: estado.ultimaActualizacion, rol: rol),
             ]),
           ),
-          _FiltroEstados(estado: estado, onCambiar: controller.cambiarFiltro),
+          // Sin una carga correcta todavía, los chips no muestran números
+          // (un "(0)" haría creer que no hay incidencias).
+          _FiltroEstados(
+              estado: estado,
+              conConteo: estado.ultimaActualizacion != null,
+              onCambiar: controller.cambiarFiltro),
           if (estado.error != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -69,9 +74,14 @@ class IncidenciasPage extends ConsumerWidget {
                   : visibles.isEmpty
                       ? _Centro(
                           child: Text(
-                          estado.incidencias.isEmpty
-                              ? 'No hay incidencias todavía'
-                              : 'No hay incidencias con este estado',
+                          // Si nunca cargó bien y hubo error, no se sabe si hay
+                          // incidencias: se invita a reintentar (el error ya se
+                          // muestra arriba).
+                          estado.error != null && estado.ultimaActualizacion == null
+                              ? 'Desliza hacia abajo para reintentar'
+                              : estado.incidencias.isEmpty
+                                  ? 'No hay incidencias todavía'
+                                  : 'No hay incidencias con este estado',
                           textAlign: TextAlign.center,
                         ))
                       : ListView.builder(
@@ -98,18 +108,21 @@ class IncidenciasPage extends ConsumerWidget {
   }
 }
 
-/// Fila de chips para filtrar por estado (con el número de cada uno).
+/// Fila de chips para filtrar por estado (con el número de cada uno
+/// solo si [conConteo]: después de al menos una carga correcta).
 class _FiltroEstados extends StatelessWidget {
   final ListaIncidenciasState estado;
+  final bool conConteo;
   final ValueChanged<EstadoIncidencia?> onCambiar;
-  const _FiltroEstados({required this.estado, required this.onCambiar});
+  const _FiltroEstados(
+      {required this.estado, required this.conConteo, required this.onCambiar});
 
   @override
   Widget build(BuildContext context) {
     Widget chip(String texto, EstadoIncidencia? valor) => Padding(
           padding: const EdgeInsets.only(right: 8),
           child: ChoiceChip(
-            label: Text('$texto (${estado.cuantas(valor)})'),
+            label: Text(conConteo ? '$texto (${estado.cuantas(valor)})' : texto),
             selected: estado.filtro == valor,
             onSelected: (_) => onCambiar(valor),
           ),
