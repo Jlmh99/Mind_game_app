@@ -1,0 +1,28 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+      - name: Instalar libsqlite3 (Floor en pruebas)
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+      - run: flutter --version
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test --reporter expanded --coverage
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cobertura-lcov
+          path: coverage/lcov.info
