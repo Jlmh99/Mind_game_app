@@ -69,27 +69,38 @@ mixin PartidaEnCursoEnPagina<W extends ConsumerStatefulWidget, S> on ConsumerSta
 
     final continuar = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // obliga a elegir
-      builder: (dialogo) => AlertDialog(
-        icon: const Icon(Icons.save_outlined, size: 40),
-        title: Text('$nombreJuego sin terminar'),
-        content: Text('Tienes una partida guardada (${resumenPartida(guardada)}). '
-            '¿Quieres continuarla?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogo).pop(false),
-            child: const Text('Nueva partida'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(dialogo).pop(true),
-            child: const Text('Continuar partida'),
-          ),
-        ],
+      barrierDismissible: false, // tocar fuera no lo cierra
+      // El botón "atrás" de Android tampoco: antes lo cerraba sin respuesta y
+      // eso se trataba como "Nueva partida", borrando la guardada (hallazgo P14).
+      builder: (dialogo) => PopScope(
+        canPop: false,
+        child: AlertDialog(
+          icon: const Icon(Icons.save_outlined, size: 40),
+          title: Text('$nombreJuego sin terminar'),
+          content: Text('Tienes una partida guardada (${resumenPartida(guardada)}). '
+              '¿Quieres continuarla?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogo).pop(false),
+              child: const Text('Nueva partida'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogo).pop(true),
+              child: const Text('Continuar partida'),
+            ),
+          ],
+        ),
       ),
     );
     if (!mounted) return;
     _decidiendo = false;
     final ctrl = controladorEnCurso;
+    if (continuar == null) {
+      // Cerrado sin elegir (no debería pasar con PopScope): NO se borra nada;
+      // se sale del juego para que la partida nueva no pise la guardada.
+      Navigator.of(context).maybePop();
+      return;
+    }
     if (continuar == true) {
       ctrl.restaurar(guardada); // el cronómetro sigue desde los segundos guardados
     } else {
