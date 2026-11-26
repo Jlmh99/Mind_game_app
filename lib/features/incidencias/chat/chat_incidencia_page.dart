@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../../core/widgets/nota_servidor_inactivo.dart';
 import '../../../data/incidencias_repository.dart';
 import '../../../data/mensajes_repository.dart';
 import '../../auth/auth_controller.dart';
@@ -215,6 +216,11 @@ class _VistaCanalState extends ConsumerState<_VistaCanal> {
             padding: const EdgeInsets.fromLTRB(12, 6, 12, 0),
             child: Text(estado.error!,
                 style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        if (estado.error == mensajeErrorCargaMensajes)
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 12),
+            child: NotaServidorInactivo(alineacion: TextAlign.start),
           ),
         const Divider(height: 12),
         Expanded(

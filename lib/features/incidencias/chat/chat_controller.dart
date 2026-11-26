@@ -7,6 +7,10 @@ import '../../auth/auth_controller.dart';
 import '../incidencias_comun.dart';
 import 'chat_comun.dart';
 
+/// Error al cargar los mensajes (no de permiso): la pantalla agrega la nota
+/// de que el servidor puede tardar si estuvo inactivo.
+const mensajeErrorCargaMensajes = 'No se pudieron cargar los mensajes';
+
 /// Clave de un chat: (id de la incidencia, canal).
 typedef ClaveChat = (int, CanalChat);
 
@@ -135,7 +139,7 @@ class ChatController extends AutoDisposeFamilyNotifier<ChatState, ClaveChat> {
           cargando: false,
           error: r == ResultadoAccion.sinPermiso
               ? mensajeSinPermiso
-              : 'No se pudieron cargar los mensajes');
+              : mensajeErrorCargaMensajes);
       return;
     }
 

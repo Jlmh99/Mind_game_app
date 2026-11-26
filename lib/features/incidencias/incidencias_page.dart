@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/widgets/nota_servidor_inactivo.dart';
 import '../../data/incidencias_repository.dart';
 import '../auth/auth_controller.dart';
 import 'crear_incidencia_page.dart';
@@ -63,6 +64,11 @@ class IncidenciasPage extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(estado.error!,
                   style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            ),
+          if (estado.error == mensajeErrorCarga)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: NotaServidorInactivo(alineacion: TextAlign.start),
             ),
           Expanded(
             // Pull-to-refresh disponible para todos (USER lo necesita;

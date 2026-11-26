@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/formato.dart';
+import '../../core/widgets/nota_servidor_inactivo.dart';
 import '../../data/partidas_repository.dart';
 import '../auth/auth_controller.dart';
 import '../partidas/cola_puntuaciones.dart';
@@ -104,6 +105,7 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
         _Aviso(
           icono: Icons.cloud_off,
           texto: estado.error!,
+          nota: const NotaServidorInactivo(),
           accion: TextButton.icon(
             icon: const Icon(Icons.refresh),
             label: const Text('Reintentar'),
@@ -248,7 +250,8 @@ class _Aviso extends StatelessWidget {
   final IconData icono;
   final String texto;
   final Widget? accion;
-  const _Aviso({required this.icono, required this.texto, this.accion});
+  final Widget? nota; // explicación bajo el texto (p. ej. servidor inactivo)
+  const _Aviso({required this.icono, required this.texto, this.accion, this.nota});
 
   @override
   Widget build(BuildContext context) {
@@ -261,6 +264,9 @@ class _Aviso extends StatelessWidget {
         Text(texto,
             textAlign: TextAlign.center,
             style: TextStyle(color: colores.onSurfaceVariant)),
+        // (no "?nota": floor_generator no entiende esa sintaxis y build_runner fallaría)
+        // ignore: use_null_aware_elements
+        if (nota != null) nota!,
         if (accion != null) ...[const SizedBox(height: 8), accion!],
       ]),
     );
