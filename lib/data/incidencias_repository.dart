@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../core/api_config.dart';
+import '../core/formato.dart';
 import '../core/providers.dart';
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,9 @@ class Incidencia {
         prioridad: prioridadDesdeApi(j['prioridad']?.toString()),
         creadoPor: UsuarioResumen.opcional(j['creadoPor']),
         asignadoA: UsuarioResumen.opcional(j['asignadoA']),
-        fechaCreacion: DateTime.parse(j['fechaCreacion'] as String),
-        fechaActualizacion: DateTime.parse(j['fechaActualizacion'] as String),
+        // UTC (el backend manda la hora sin zona; ver fechaDelServidor).
+        fechaCreacion: fechaDelServidor(j['fechaCreacion'] as String),
+        fechaActualizacion: fechaDelServidor(j['fechaActualizacion'] as String),
         version: (j['version'] as num).toInt(),
       );
 }

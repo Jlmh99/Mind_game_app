@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../core/api_config.dart';
+import '../core/formato.dart';
 import '../core/providers.dart';
 import 'incidencias_repository.dart';
 
@@ -73,7 +74,7 @@ class MensajeIncidencia {
         emisor: UsuarioResumen.opcional(j['emisor']),
         texto: (j['texto'] ?? '').toString(),
         canal: canalDesdeApi(j['canal']?.toString()),
-        fecha: DateTime.parse(j['fecha'] as String),
+        fecha: fechaDelServidor(j['fecha'] as String), // UTC (ver formato.dart)
         adjunto: j['tieneAdjunto'] == false ? null : AdjuntoMensaje.opcional(j['adjunto']),
       );
 }

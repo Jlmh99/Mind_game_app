@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../core/api_client.dart';
 import '../core/api_config.dart';
 import '../core/errores_api.dart';
+import '../core/formato.dart';
 import '../core/providers.dart';
 import '../core/sesion_expirada_exception.dart';
 
@@ -35,7 +36,7 @@ class Partida {
         juego: json['juego'] as String,
         tiempoSegundos: (json['tiempoSegundos'] as num).toInt(),
         puntuacion: (json['puntuacion'] as num).toInt(),
-        fecha: DateTime.parse(json['fecha'] as String),
+        fecha: fechaDelServidor(json['fecha'] as String), // UTC (ver formato.dart)
       );
 }
 
