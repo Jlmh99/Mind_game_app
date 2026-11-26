@@ -45,7 +45,12 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
 
   @override
   Widget build(BuildContext context) {
-    final estado = ref.watch(crucigramaControllerProvider);
+    // Rendimiento (P14): la página NO observa "segundos". Antes, cada tic del
+    // cronómetro (1 por segundo) reconstruía y repintaba toda la pantalla.
+    // Ahora solo se reconstruye si cambia el tablero, la selección o el fin de
+    // la partida; el reloj tiene su propio Consumer (ver _Marcador abajo).
+    ref.watch(crucigramaControllerProvider.select(_vistaSinReloj));
+    final estado = ref.read(crucigramaControllerProvider);
     final controller = ref.read(crucigramaControllerProvider.notifier);
 
     // Al completar (una sola vez por partida): ocultamos el teclado,
@@ -83,25 +88,35 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _Marcador(
-                          segundos: estado.segundos, errores: estado.errores),
+                      // Solo esto se reconstruye con cada tic del cronómetro.
+                      Consumer(builder: (context, ref, _) {
+                        final (segundos, errores) = ref.watch(crucigramaControllerProvider
+                            .select((s) => (s.segundos, s.errores)));
+                        return _Marcador(segundos: segundos, errores: errores);
+                      }),
                       const SizedBox(height: 12),
-                      CrucigramaTablero(
-                        estado: estado,
-                        onTocar: (f, c) {
-                          controller.seleccionarCasilla(f, c);
-                          CapturaTeclado.mostrar(_focoTeclado);
-                        },
+                      // RepaintBoundary: el tic del reloj ya no repinta el tablero,
+                      // y al moverse por el teclado se mueve su capa sin repintarla.
+                      RepaintBoundary(
+                        child: CrucigramaTablero(
+                          estado: estado,
+                          onTocar: (f, c) {
+                            controller.seleccionarCasilla(f, c);
+                            CapturaTeclado.mostrar(_focoTeclado);
+                          },
+                        ),
                       ),
                       const SizedBox(height: 12),
                       _PistaActual(estado: estado),
                       const SizedBox(height: 12),
-                      CrucigramaPistas(
-                        estado: estado,
-                        onTocarPista: (p) {
-                          controller.seleccionarPalabra(p);
-                          CapturaTeclado.mostrar(_focoTeclado);
-                        },
+                      RepaintBoundary(
+                        child: CrucigramaPistas(
+                          estado: estado,
+                          onTocarPista: (p) {
+                            controller.seleccionarPalabra(p);
+                            CapturaTeclado.mostrar(_focoTeclado);
+                          },
+                        ),
                       ),
                       const SizedBox(height: 16),
                       OutlinedButton.icon(
@@ -174,6 +189,11 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
     );
   }
 }
+
+/// Lo que la página observa del estado: todo menos el cronómetro. Si un tic
+/// solo cambia "segundos", el registro es igual (mismo tablero) y no hay rebuild.
+(List<List<String?>>, int?, int?, Orientacion, bool) _vistaSinReloj(CrucigramaState s) =>
+    (s.tablero, s.filaSel, s.colSel, s.orientacion, s.terminado);
 
 /// Fila superior con el cronómetro y el contador de errores.
 class _Marcador extends StatelessWidget {
