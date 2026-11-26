@@ -74,13 +74,15 @@ class _$AppDatabase extends AppDatabase {
 
   SesionDao? _sesionDaoInstance;
 
+  PartidaEnCursoDao? _partidaEnCursoDaoInstance;
+
   Future<sqflite.Database> open(
     String path,
     List<Migration> migrations, [
     Callback? callback,
   ]) async {
     final databaseOptions = sqflite.OpenDatabaseOptions(
-      version: 1,
+      version: 2,
       onConfigure: (database) async {
         await database.execute('PRAGMA foreign_keys = ON');
         await callback?.onConfigure?.call(database);
@@ -97,6 +99,8 @@ class _$AppDatabase extends AppDatabase {
       onCreate: (database, version) async {
         await database.execute(
             'CREATE TABLE IF NOT EXISTS `sesion` (`id` INTEGER NOT NULL, `correo` TEXT NOT NULL, `token` TEXT NOT NULL, `rol` TEXT NOT NULL, PRIMARY KEY (`id`))');
+        await database.execute(
+            'CREATE TABLE IF NOT EXISTS `partida_en_curso` (`correo` TEXT NOT NULL, `juego` TEXT NOT NULL, `estadoJson` TEXT NOT NULL, `segundos` INTEGER NOT NULL, `errores` INTEGER NOT NULL, `actualizadoEn` INTEGER NOT NULL, PRIMARY KEY (`correo`, `juego`))');
 
         await callback?.onCreate?.call(database, version);
       },
@@ -107,6 +111,12 @@ class _$AppDatabase extends AppDatabase {
   @override
   SesionDao get sesionDao {
     return _sesionDaoInstance ??= _$SesionDao(database, changeListener);
+  }
+
+  @override
+  PartidaEnCursoDao get partidaEnCursoDao {
+    return _partidaEnCursoDaoInstance ??=
+        _$PartidaEnCursoDao(database, changeListener);
   }
 }
 
@@ -151,5 +161,71 @@ class _$SesionDao extends SesionDao {
   @override
   Future<void> guardar(Sesion sesion) async {
     await _sesionInsertionAdapter.insert(sesion, OnConflictStrategy.replace);
+  }
+}
+
+class _$PartidaEnCursoDao extends PartidaEnCursoDao {
+  _$PartidaEnCursoDao(
+    this.database,
+    this.changeListener,
+  )   : _queryAdapter = QueryAdapter(database),
+        _partidaEnCursoInsertionAdapter = InsertionAdapter(
+            database,
+            'partida_en_curso',
+            (PartidaEnCurso item) => <String, Object?>{
+                  'correo': item.correo,
+                  'juego': item.juego,
+                  'estadoJson': item.estadoJson,
+                  'segundos': item.segundos,
+                  'errores': item.errores,
+                  'actualizadoEn': item.actualizadoEn
+                });
+
+  final sqflite.DatabaseExecutor database;
+
+  final StreamController<String> changeListener;
+
+  final QueryAdapter _queryAdapter;
+
+  final InsertionAdapter<PartidaEnCurso> _partidaEnCursoInsertionAdapter;
+
+  @override
+  Future<PartidaEnCurso?> obtener(
+    String correo,
+    String juego,
+  ) async {
+    return _queryAdapter.query(
+        'SELECT * FROM partida_en_curso WHERE correo = ?1 AND juego = ?2',
+        mapper: (Map<String, Object?> row) => PartidaEnCurso(
+            correo: row['correo'] as String,
+            juego: row['juego'] as String,
+            estadoJson: row['estadoJson'] as String,
+            segundos: row['segundos'] as int,
+            errores: row['errores'] as int,
+            actualizadoEn: row['actualizadoEn'] as int),
+        arguments: [correo, juego]);
+  }
+
+  @override
+  Future<void> borrar(
+    String correo,
+    String juego,
+  ) async {
+    await _queryAdapter.queryNoReturn(
+        'DELETE FROM partida_en_curso WHERE correo = ?1 AND juego = ?2',
+        arguments: [correo, juego]);
+  }
+
+  @override
+  Future<void> borrarTodasDe(String correo) async {
+    await _queryAdapter.queryNoReturn(
+        'DELETE FROM partida_en_curso WHERE correo = ?1',
+        arguments: [correo]);
+  }
+
+  @override
+  Future<void> guardar(PartidaEnCurso partida) async {
+    await _partidaEnCursoInsertionAdapter.insert(
+        partida, OnConflictStrategy.replace);
   }
 }

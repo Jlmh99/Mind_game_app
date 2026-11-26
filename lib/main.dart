@@ -8,9 +8,15 @@ import 'features/home/home_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final db = await $FloorAppDatabase.databaseBuilder('mindgames.db').build();
+  final db = await $FloorAppDatabase
+      .databaseBuilder('mindgames.db')
+      .addMigrations([migracion1a2]) // v1 -> v2: tabla partida_en_curso
+      .build();
   runApp(ProviderScope(
-    overrides: [databaseProvider.overrideWithValue(db)],
+    overrides: [
+      databaseProvider.overrideWithValue(db),
+      partidaEnCursoDaoProvider.overrideWithValue(db.partidaEnCursoDao),
+    ],
     child: const MindGamesApp(),
   ));
 }

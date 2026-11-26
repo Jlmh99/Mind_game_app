@@ -150,9 +150,14 @@ class IncidenciasRepository {
         '$rutaIncidencias/$id',
         {
           'version': version,
-          // "?valor": la clave solo se incluye si el valor no es null.
-          'titulo': ?titulo,
-          'descripcion': ?descripcion,
+          // La clave solo se incluye si el valor no es null. (Antes se usaba
+          // "'clave': ?valor", pero floor_generator 1.5.0 no entiende esa
+          // sintaxis de Dart 3.8 y build_runner fallaba; por eso se ignora
+          // aquí la regla use_null_aware_elements, que pide justo esa sintaxis.)
+          // ignore: use_null_aware_elements
+          if (titulo != null) 'titulo': titulo,
+          // ignore: use_null_aware_elements
+          if (descripcion != null) 'descripcion': descripcion,
           if (estado != null) 'estado': estadoAApi(estado),
           if (prioridad != null) 'prioridad': prioridadAApi(prioridad),
         },

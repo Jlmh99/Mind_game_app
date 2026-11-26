@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/partidas_repository.dart';
+import '../partidas/guardado_en_curso.dart';
 import '../partidas/guardar_partida.dart';
+import '../partidas/partida_en_curso_pagina.dart';
 import 'sudoku_controller.dart';
 import 'sudoku_model.dart';
 import 'widgets/sudoku_tablero.dart';
@@ -9,11 +11,30 @@ import 'widgets/sudoku_teclado.dart';
 
 /// Pantalla del minijuego Sudoku.
 /// La lógica vive en SudokuController; aquí solo se dibuja y se avisan acciones.
-class SudokuPage extends ConsumerWidget {
+/// Es Stateful para el ciclo de vida de la app y el diálogo "Continuar
+/// partida" (PartidaEnCursoEnPagina, Práctica 14).
+class SudokuPage extends ConsumerStatefulWidget {
   const SudokuPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SudokuPage> createState() => _SudokuPageState();
+}
+
+class _SudokuPageState extends ConsumerState<SudokuPage>
+    with PartidaEnCursoEnPagina<SudokuPage, SudokuState> {
+  @override
+  ControladorConPartidaEnCurso<SudokuState> get controladorEnCurso =>
+      ref.read(sudokuControllerProvider.notifier);
+
+  @override
+  String get nombreJuego => 'Sudoku';
+
+  @override
+  String resumenPartida(SudokuState g) =>
+      'tiempo ${formatoTiempo(g.segundos)}, errores: ${g.errores}';
+
+  @override
+  Widget build(BuildContext context) {
     final estado = ref.watch(sudokuControllerProvider);
     final controller = ref.read(sudokuControllerProvider.notifier);
 

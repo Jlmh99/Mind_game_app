@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/partidas_repository.dart';
+import '../partidas/guardado_en_curso.dart';
 import '../partidas/guardar_partida.dart';
+import '../partidas/partida_en_curso_pagina.dart';
 import 'crucigrama_controller.dart';
 import 'crucigrama_model.dart';
 import 'widgets/captura_teclado.dart';
@@ -18,8 +20,21 @@ class CrucigramaPage extends ConsumerStatefulWidget {
   ConsumerState<CrucigramaPage> createState() => _CrucigramaPageState();
 }
 
-class _CrucigramaPageState extends ConsumerState<CrucigramaPage> {
+class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
+    with PartidaEnCursoEnPagina<CrucigramaPage, CrucigramaState> {
   final _focoTeclado = FocusNode();
+
+  // ---- Partida en curso (Práctica 14): ver PartidaEnCursoEnPagina ----
+  @override
+  ControladorConPartidaEnCurso<CrucigramaState> get controladorEnCurso =>
+      ref.read(crucigramaControllerProvider.notifier);
+
+  @override
+  String get nombreJuego => 'Crucigrama';
+
+  @override
+  String resumenPartida(CrucigramaState g) =>
+      'tiempo ${formatoTiempoCrucigrama(g.segundos)}, errores: ${g.errores}';
 
   @override
   void dispose() {

@@ -1,5 +1,9 @@
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/providers.dart';
+import '../../data/partidas_repository.dart';
+import '../auth/auth_controller.dart';
+import '../partidas/guardado_en_curso.dart';
 import 'crucigrama_model.dart';
 
 /// Provider del Crucigrama. Es autoDispose (igual que el Sudoku): al salir de
@@ -8,12 +12,33 @@ final crucigramaControllerProvider =
     NotifierProvider.autoDispose<CrucigramaController, CrucigramaState>(
         CrucigramaController.new);
 
-class CrucigramaController extends AutoDisposeNotifier<CrucigramaState> {
+class CrucigramaController extends AutoDisposeNotifier<CrucigramaState>
+    implements ControladorConPartidaEnCurso<CrucigramaState> {
   Timer? _timer;
+
+  /// Partida en curso en Floor (Práctica 14). Inactivo si no hay DAO.
+  late GuardadoEnCurso _guardado;
+
+  /// true si en esta partida ya hubo jugadas (o se restauró una guardada).
+  bool _hayProgreso = false;
+
+  /// Último estado conocido (para guardarlo al destruir el provider).
+  CrucigramaState? _ultimo;
 
   @override
   CrucigramaState build() {
-    ref.onDispose(_detenerTimer);
+    final dao = ref.read(partidaEnCursoDaoProvider);
+    _guardado = GuardadoEnCurso(
+      dao: dao,
+      // La sesión solo se lee si hay persistencia (pruebas sin BD: igual que antes).
+      correo: dao == null ? null : ref.read(authControllerProvider).correo,
+      juego: juegoCrucigrama,
+    );
+    listenSelf((_, nuevo) => _ultimo = nuevo);
+    ref.onDispose(() {
+      _detenerTimer();
+      _guardarAlSalir();
+    });
     _iniciarTimer();
     return CrucigramaState.nuevo();
   }
@@ -98,11 +123,15 @@ class CrucigramaController extends AutoDisposeNotifier<CrucigramaState> {
       filaSel: siguiente.$1,
       colSel: siguiente.$2,
     );
+    _hayProgreso = true;
 
+    // Terminado: se para el tiempo y se borra la partida guardada.
     if (crucigramaCompleto(state.tablero)) {
       _detenerTimer();
       state = state.copyWith(terminado: true);
+      unawaited(borrarEnCurso());
     }
+    guardarEnCurso(); // no hace nada si la partida terminó
   }
 
   /// Borra la letra de la casilla seleccionada; si ya está vacía,
@@ -124,13 +153,76 @@ class CrucigramaController extends AutoDisposeNotifier<CrucigramaState> {
       filaSel: destino.$1,
       colSel: destino.$2,
     );
+    _hayProgreso = true;
+    guardarEnCurso();
   }
 
   /// Vuelve al tablero inicial; tiempo y errores regresan a 0
   /// (equivale a generarNuevo() de la web, que solo tiene un crucigrama).
+  /// La partida guardada (si había) ya no sirve: se borra.
   void reiniciar() {
+    _hayProgreso = false;
+    unawaited(_guardado.borrar());
     state = CrucigramaState.nuevo();
     _iniciarTimer();
+  }
+
+  // ---------------- Partida en curso (Práctica 14) ----------------
+
+  @override
+  bool get persistenciaActiva => _guardado.activo;
+
+  @override
+  Future<CrucigramaState?> partidaGuardada() async {
+    final datos = await _guardado.leer();
+    if (datos == null) return null;
+    try {
+      return CrucigramaState.fromJson(datos);
+    } on FormatException {
+      await _guardado.borrar(); // corrupta: se descarta
+      return null;
+    }
+  }
+
+  @override
+  void restaurar(CrucigramaState guardada) {
+    _guardado.cancelar(); // ninguna jugada previa debe pisar la guardada
+    state = guardada;
+    _hayProgreso = true;
+    _iniciarTimer(); // continúa desde guardada.segundos
+  }
+
+  @override
+  Future<void> guardarEnCurso({bool inmediato = false}) async {
+    if (!_hayProgreso || state.terminado) return;
+    if (inmediato) {
+      await _guardado.guardarAhora(state.toJson(), state.segundos, state.errores);
+    } else {
+      _guardado.programar(() =>
+          (estado: state.toJson(), segundos: state.segundos, errores: state.errores));
+    }
+  }
+
+  @override
+  Future<void> borrarEnCurso() => _guardado.borrar();
+
+  @override
+  void pausar() => _detenerTimer();
+
+  @override
+  void reanudar() {
+    if (!state.terminado && _timer == null) _iniciarTimer();
+  }
+
+  /// Al destruir el provider (salir del juego): si la partida quedó a medias
+  /// se guarda ya; si no, solo se cancela lo pendiente.
+  void _guardarAlSalir() {
+    final e = _ultimo;
+    if (_hayProgreso && e != null && !e.terminado) {
+      unawaited(_guardado.guardarAhora(e.toJson(), e.segundos, e.errores));
+    } else {
+      _guardado.cancelar();
+    }
   }
 
   // ---------------- Auxiliares ----------------
