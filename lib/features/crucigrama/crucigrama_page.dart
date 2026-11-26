@@ -4,6 +4,7 @@ import '../../data/partidas_repository.dart';
 import '../partidas/guardado_en_curso.dart';
 import '../partidas/guardar_partida.dart';
 import '../partidas/partida_en_curso_pagina.dart';
+import '../partidas/partidas_controller.dart';
 import 'crucigrama_controller.dart';
 import 'crucigrama_model.dart';
 import 'widgets/captura_teclado.dart';
@@ -52,14 +53,14 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
     ref.listen(crucigramaControllerProvider, (anterior, nuevo) {
       if (anterior?.terminado != true && nuevo.terminado) {
         _focoTeclado.unfocus();
-        guardarPartidaYAvisar(
+        final guardado = guardarPartidaYAvisar(
           context,
           ref,
           juego: juegoCrucigrama,
           tiempoSegundos: nuevo.segundos,
           puntuacion: nuevo.puntuacion,
         );
-        _mostrarVictoria(nuevo);
+        _mostrarVictoria(nuevo, guardado);
       }
     });
 
@@ -120,7 +121,9 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
   }
 
   /// Diálogo de victoria con tiempo, errores y puntuación.
-  void _mostrarVictoria(CrucigramaState e) {
+  /// [guardado]: resultado de guardar la puntuación; se muestra dentro del
+  /// diálogo porque su barrera tapa el SnackBar (hallazgo de P12).
+  void _mostrarVictoria(CrucigramaState e, Future<ResultadoGuardado> guardado) {
     showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -134,6 +137,7 @@ class _CrucigramaPageState extends ConsumerState<CrucigramaPage>
             _filaDato('Errores', '${e.errores}'),
             const Divider(),
             _filaDato('Puntuación', '${e.puntuacion}', destacado: true),
+            EstadoGuardadoPartida(guardado: guardado),
           ],
         ),
         actions: [

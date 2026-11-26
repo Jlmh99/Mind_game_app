@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import '../core/api_client.dart';
 import '../core/api_config.dart';
+import '../core/errores_api.dart';
 import '../core/providers.dart';
+import '../core/sesion_expirada_exception.dart';
 
 /// Nombres de juego que acepta el backend (PartidaController).
 const String juegoSudoku = 'SUDOKU';
@@ -75,3 +80,31 @@ class PartidasRepository {
 final partidasRepositoryProvider = Provider<PartidasRepository>(
   (ref) => PartidasRepository(ref.watch(apiClientProvider)),
 );
+
+// ---------------------------------------------------------------------------
+// Cola offline (Práctica 14): qué hacer cuando guardar() falla.
+// ---------------------------------------------------------------------------
+
+/// Tipo de fallo al enviar una partida:
+///  - red:       sin conexión, timeout o conexión cortada -> se encola.
+///  - servidor:  HTTP 5xx -> se encola (el servidor puede volver).
+///  - sesion:    401/403 de sesión -> se cierra la sesión; la cola NO se borra.
+///  - rechazada: 400, 422, otros 4xx, 403 de permiso o respuesta inesperada:
+///               reintentar no la arreglaría -> no se encola.
+enum FalloGuardado { red, servidor, sesion, rechazada }
+
+FalloGuardado clasificarFalloGuardado(Object e) {
+  if (e is SesionExpiradaException) return FalloGuardado.sesion;
+  if (e is SocketException ||
+      e is http.ClientException ||
+      e is TimeoutException ||
+      e is HandshakeException) {
+    return FalloGuardado.red;
+  }
+  if (e is ErrorHttpException && e.codigo >= 500) return FalloGuardado.servidor;
+  return FalloGuardado.rechazada;
+}
+
+/// true si el fallo es temporal y vale la pena guardar la puntuación para
+/// reenviarla después.
+bool seDebeEncolar(FalloGuardado f) => f == FalloGuardado.red || f == FalloGuardado.servidor;

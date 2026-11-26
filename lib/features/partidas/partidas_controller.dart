@@ -1,10 +1,14 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/sesion_expirada_exception.dart';
 import '../../data/partidas_repository.dart';
 import '../auth/auth_controller.dart';
+import 'cola_puntuaciones.dart';
 
 /// Resultado de intentar guardar una partida (para decidir qué mostrar).
-enum ResultadoGuardado { guardada, fallo, sesionExpirada }
+/// pendiente: no se pudo enviar (sin red o 5xx) y quedó en la cola del
+/// teléfono para reenviarse al reconectar (Práctica 14).
+enum ResultadoGuardado { guardada, pendiente, fallo, sesionExpirada }
 
 class PartidasState {
   final List<Partida> partidas; // de la más reciente a la más antigua
@@ -69,6 +73,13 @@ class PartidasController extends Notifier<PartidasState> {
     required int tiempoSegundos,
     required int puntuacion,
   }) async {
+    // Si ya hay puntuaciones esperando en la cola, esta se pone al final y se
+    // envía con la misma sincronización: así solo la cola envía (un POST a la
+    // vez) y el servidor las recibe en el orden en que se jugaron.
+    final cola = ref.read(colaPuntuacionesProvider.notifier);
+    if (cola.activa && await cola.pendientesActuales() > 0) {
+      return _guardarDetrasDeLaCola(cola, juego, tiempoSegundos, puntuacion);
+    }
     try {
       final partida = await _repo.guardar(
         juego: juego,
@@ -76,12 +87,38 @@ class PartidasController extends Notifier<PartidasState> {
         puntuacion: puntuacion,
       );
       state = state.copyWith(partidas: [partida, ...state.partidas]);
+      // Hay conexión: se aprovecha para reenviar lo que estuviera en la cola.
+      unawaited(ref.read(colaPuntuacionesProvider.notifier).sincronizar());
       return ResultadoGuardado.guardada;
     } on SesionExpiradaException {
+      // Como antes: se cierra la sesión. La cola offline NO se toca.
       await ref.read(authControllerProvider.notifier).sesionExpirada();
       return ResultadoGuardado.sesionExpirada;
-    } catch (_) {
+    } catch (e) {
+      // Sin red o 5xx: se guarda en el teléfono para reenviarla al reconectar
+      // (si hay cola). 400/422 y demás rechazos: fallo, sin encolar.
+      if (seDebeEncolar(clasificarFalloGuardado(e)) && cola.activa) {
+        await cola.encolar(juego: juego, tiempoSegundos: tiempoSegundos, puntuacion: puntuacion);
+        return ResultadoGuardado.pendiente;
+      }
       return ResultadoGuardado.fallo;
     }
+  }
+
+  Future<ResultadoGuardado> _guardarDetrasDeLaCola(
+      ColaPuntuacionesController cola, String juego, int tiempoSegundos, int puntuacion) async {
+    final id = await cola.encolar(juego: juego, tiempoSegundos: tiempoSegundos, puntuacion: puntuacion);
+    // Si ya había una sincronización en curso, espera a esa (y repasa la cola).
+    // OJO: después de este await no se usa ref: si la sincronización cerró la
+    // sesión (401/403), este provider queda pendiente de reconstruirse.
+    final r = await cola.sincronizar();
+    if (r.sesionExpirada) {
+      return ResultadoGuardado.sesionExpirada; // la partida queda en la cola
+    }
+    return switch (id == null ? null : cola.destinoDe(id)) {
+      DestinoPendiente.enviada => ResultadoGuardado.guardada, // la lista ya se refrescó
+      DestinoPendiente.descartada => ResultadoGuardado.fallo,
+      null => ResultadoGuardado.pendiente,
+    };
   }
 }

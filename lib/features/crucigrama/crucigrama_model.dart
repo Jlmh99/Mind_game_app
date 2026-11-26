@@ -89,10 +89,11 @@ bool palabraCorrecta(List<List<String?>> tablero, PalabraCrucigrama p) =>
 bool crucigramaCompleto(List<List<String?>> tablero) =>
     palabrasCrucigrama.every((p) => palabraCorrecta(tablero, p));
 
-/// Puntuación = max(0, 1000 - segundos - 25 * errores).
+/// Puntuación = 1000 - segundos - 25 * errores, acotada entre 0 y 1000
+/// (igual que el Sudoku desde P13-01: con valores negativos no supera 1000).
 int calcularPuntuacionCrucigrama(int segundos, int errores) {
   final puntos = 1000 - segundos - 25 * errores;
-  return puntos < 0 ? 0 : puntos;
+  return puntos.clamp(0, 1000);
 }
 
 /// Convierte segundos a "m:ss" (igual que formatoTiempo de la web).

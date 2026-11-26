@@ -4,6 +4,7 @@ import '../../data/partidas_repository.dart';
 import '../partidas/guardado_en_curso.dart';
 import '../partidas/guardar_partida.dart';
 import '../partidas/partida_en_curso_pagina.dart';
+import '../partidas/partidas_controller.dart';
 import 'sudoku_controller.dart';
 import 'sudoku_model.dart';
 import 'widgets/sudoku_tablero.dart';
@@ -42,14 +43,14 @@ class _SudokuPageState extends ConsumerState<SudokuPage>
     // se guarda en el servidor y se muestra el diálogo de victoria.
     ref.listen(sudokuControllerProvider, (anterior, nuevo) {
       if (anterior?.terminado != true && nuevo.terminado) {
-        guardarPartidaYAvisar(
+        final guardado = guardarPartidaYAvisar(
           context,
           ref,
           juego: juegoSudoku,
           tiempoSegundos: nuevo.segundos,
           puntuacion: nuevo.puntuacion,
         );
-        _mostrarVictoria(context, ref, nuevo);
+        _mostrarVictoria(context, ref, nuevo, guardado);
       }
     });
 
@@ -107,7 +108,10 @@ class _SudokuPageState extends ConsumerState<SudokuPage>
   }
 
   /// Diálogo de victoria con tiempo, errores y puntuación.
-  void _mostrarVictoria(BuildContext context, WidgetRef ref, SudokuState e) {
+  /// [guardado]: resultado de guardar la puntuación; se muestra dentro del
+  /// diálogo porque su barrera tapa el SnackBar (hallazgo de P12).
+  void _mostrarVictoria(BuildContext context, WidgetRef ref, SudokuState e,
+      Future<ResultadoGuardado> guardado) {
     showDialog<void>(
       context: context,
       barrierDismissible: false, // obliga a elegir una opción
@@ -121,6 +125,7 @@ class _SudokuPageState extends ConsumerState<SudokuPage>
             _filaDato('Errores', '${e.errores}'),
             const Divider(),
             _filaDato('Puntuación', '${e.puntuacion}', destacado: true),
+            EstadoGuardadoPartida(guardado: guardado),
           ],
         ),
         actions: [
