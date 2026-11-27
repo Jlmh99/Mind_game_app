@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/orientacion.dart';
 import 'core/providers.dart';
 import 'data/local/app_database.dart';
 import 'features/auth/auth_controller.dart';
@@ -9,6 +10,7 @@ import 'features/partidas/cola_puntuaciones.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await bloquearVertical(); // la app solo funciona en vertical
   final db = await $FloorAppDatabase
       .databaseBuilder('mindgames.db')
       .addMigrations(migracionesApp) // v1 -> v2 -> v3
