@@ -117,6 +117,61 @@ class SudokuState {
     );
   }
 
+  // ---------------- Persistencia (partida en curso) ----------------
+
+  /// Datos para guardar la partida en curso. NO incluye el tablero inicial:
+  /// se reconstruye con tablerosSudoku[indiceTablero]. Tampoco "terminado":
+  /// una partida terminada no se guarda.
+  Map<String, dynamic> toJson() => {
+        'indiceTablero': indiceTablero,
+        'tablero': tablero,
+        'filaSel': filaSel,
+        'colSel': colSel,
+        'segundos': segundos,
+        'errores': errores,
+      };
+
+  /// Reconstruye una partida guardada. Lanza FormatException si los datos no
+  /// cuadran (índice inexistente, tablero que no es 9x9, valores fuera de
+  /// 0-9 o números fijos cambiados), para descartar una partida corrupta.
+  factory SudokuState.fromJson(Map<String, dynamic> j) {
+    final indice = j['indiceTablero'];
+    if (indice is! int || indice < 0 || indice >= tablerosSudoku.length) {
+      throw const FormatException('indiceTablero inválido');
+    }
+    final base = copiarTablero(tablerosSudoku[indice]);
+    final filas = j['tablero'];
+    if (filas is! List || filas.length != 9) {
+      throw const FormatException('tablero inválido');
+    }
+    final tablero = <List<int>>[];
+    for (var f = 0; f < 9; f++) {
+      final fila = filas[f];
+      if (fila is! List || fila.length != 9) {
+        throw const FormatException('tablero inválido');
+      }
+      tablero.add([
+        for (var c = 0; c < 9; c++)
+          if (fila[c] is int && fila[c] >= 0 && fila[c] <= 9 &&
+              (base[f][c] == 0 || fila[c] == base[f][c]))
+            fila[c] as int
+          else
+            throw const FormatException('celda inválida'),
+      ]);
+    }
+    int? posicion(Object? v) => v is int && v >= 0 && v < 9 ? v : null;
+    final segundos = j['segundos'], errores = j['errores'];
+    return SudokuState(
+      indiceTablero: indice,
+      inicial: base,
+      tablero: tablero,
+      filaSel: posicion(j['filaSel']),
+      colSel: posicion(j['colSel']),
+      segundos: segundos is int && segundos >= 0 ? segundos : 0,
+      errores: errores is int && errores >= 0 ? errores : 0,
+    );
+  }
+
   bool get haySeleccion => filaSel != null && colSel != null;
 
   /// Número de la celda seleccionada (0 si está vacía o no hay selección).

@@ -43,3 +43,9 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firma de producción (Práctica 14): nunca versionar keystores ni sus datos.
+# (android/.gitignore ya los ignora dentro de android/; esto cubre todo el repo.)
+*.jks
+*.keystore
+key.properties

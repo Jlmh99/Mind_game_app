@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'core/orientacion.dart';
 import 'core/providers.dart';
 import 'data/local/app_database.dart';
 import 'features/auth/auth_controller.dart';
 import 'features/auth/auth_pages.dart';
 import 'features/home/home_page.dart';
+import 'features/partidas/cola_puntuaciones.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  final db = await $FloorAppDatabase.databaseBuilder('mindgames.db').build();
+  await bloquearVertical(); // la app solo funciona en vertical
+  final db = await $FloorAppDatabase
+      .databaseBuilder('mindgames.db')
+      .addMigrations(migracionesApp) // v1 -> v2 -> v3
+      .build();
   runApp(ProviderScope(
-    overrides: [databaseProvider.overrideWithValue(db)],
+    overrides: [
+      databaseProvider.overrideWithValue(db),
+      partidaEnCursoDaoProvider.overrideWithValue(db.partidaEnCursoDao),
+      puntuacionPendienteDaoProvider.overrideWithValue(db.puntuacionPendienteDao),
+    ],
     child: const MindGamesApp(),
   ));
 }
@@ -29,6 +39,11 @@ class MindGamesApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authControllerProvider);
+
+    // Cola offline de puntuaciones (Práctica 14): se mantiene viva toda la
+    // app para reenviar al volver la red o al iniciar con sesión. listen (y no
+    // watch) para no reconstruir la app cada vez que cambia el contador.
+    ref.listen(colaPuntuacionesProvider, (_, _) {});
 
     // Si la sesión se cierra (o expira) mientras hay pantallas encima del
     // inicio, las quitamos para que el login quede visible.

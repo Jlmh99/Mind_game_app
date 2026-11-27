@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/formato.dart';
+import '../../core/widgets/nota_servidor_inactivo.dart';
 import '../../data/partidas_repository.dart';
 import '../auth/auth_controller.dart';
+import '../partidas/cola_puntuaciones.dart';
 import '../partidas/partidas_controller.dart';
 import 'foto_perfil_controller.dart';
 import 'usuario_actual_controller.dart';
@@ -28,6 +30,7 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
       ref.read(partidasControllerProvider.notifier).cargar();
       ref.read(fotoPerfilControllerProvider.notifier).cargar();
       ref.read(usuarioActualProvider.notifier).cargar();
+      ref.read(colaPuntuacionesProvider.notifier).refrescarConteo();
     });
   }
 
@@ -35,6 +38,8 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
     final partidas = ref.watch(partidasControllerProvider);
+    // Puntuaciones guardadas en el teléfono que faltan por enviar (cola offline).
+    final pendientes = ref.watch(colaPuntuacionesProvider);
     final controller = ref.read(partidasControllerProvider.notifier);
     final foto = ref.watch(fotoPerfilControllerProvider);
     final fotoController = ref.read(fotoPerfilControllerProvider.notifier);
@@ -75,6 +80,7 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
               const SizedBox(height: 24),
               Text('Últimas partidas', style: textos.titleMedium),
               const SizedBox(height: 8),
+              if (pendientes > 0) _PendientesDeEnviar(cantidad: pendientes),
               ..._contenidoPartidas(partidas, controller),
             ],
           ),
@@ -99,6 +105,7 @@ class _PerfilPageState extends ConsumerState<PerfilPage> {
         _Aviso(
           icono: Icons.cloud_off,
           texto: estado.error!,
+          nota: const NotaServidorInactivo(),
           accion: TextButton.icon(
             icon: const Icon(Icons.refresh),
             label: const Text('Reintentar'),
@@ -243,7 +250,8 @@ class _Aviso extends StatelessWidget {
   final IconData icono;
   final String texto;
   final Widget? accion;
-  const _Aviso({required this.icono, required this.texto, this.accion});
+  final Widget? nota; // explicación bajo el texto (p. ej. servidor inactivo)
+  const _Aviso({required this.icono, required this.texto, this.accion, this.nota});
 
   @override
   Widget build(BuildContext context) {
@@ -256,8 +264,35 @@ class _Aviso extends StatelessWidget {
         Text(texto,
             textAlign: TextAlign.center,
             style: TextStyle(color: colores.onSurfaceVariant)),
+        // (no "?nota": floor_generator no entiende esa sintaxis y build_runner fallaría)
+        // ignore: use_null_aware_elements
+        if (nota != null) nota!,
         if (accion != null) ...[const SizedBox(height: 8), accion!],
       ]),
+    );
+  }
+}
+
+/// Aviso con el número de puntuaciones guardadas en el teléfono que aún no
+/// se envían al servidor (se envían solas al reconectar).
+class _PendientesDeEnviar extends StatelessWidget {
+  const _PendientesDeEnviar({required this.cantidad});
+  final int cantidad;
+
+  @override
+  Widget build(BuildContext context) {
+    final colores = Theme.of(context).colorScheme;
+    final texto = cantidad == 1
+        ? '1 puntuación pendiente de enviar'
+        : '$cantidad puntuaciones pendientes de enviar';
+    return Card(
+      color: colores.tertiaryContainer,
+      child: ListTile(
+        leading: Icon(Icons.cloud_off_outlined, color: colores.onTertiaryContainer),
+        title: Text(texto, style: TextStyle(color: colores.onTertiaryContainer)),
+        subtitle: Text('Se enviarán automáticamente al reconectar.',
+            style: TextStyle(color: colores.onTertiaryContainer)),
+      ),
     );
   }
 }

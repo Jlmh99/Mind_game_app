@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/api_client.dart';
 import '../core/api_config.dart';
+import '../core/formato.dart';
 import '../core/providers.dart';
 
 // ---------------------------------------------------------------------------
@@ -91,8 +92,9 @@ class Incidencia {
         prioridad: prioridadDesdeApi(j['prioridad']?.toString()),
         creadoPor: UsuarioResumen.opcional(j['creadoPor']),
         asignadoA: UsuarioResumen.opcional(j['asignadoA']),
-        fechaCreacion: DateTime.parse(j['fechaCreacion'] as String),
-        fechaActualizacion: DateTime.parse(j['fechaActualizacion'] as String),
+        // UTC (el backend manda la hora sin zona; ver fechaDelServidor).
+        fechaCreacion: fechaDelServidor(j['fechaCreacion'] as String),
+        fechaActualizacion: fechaDelServidor(j['fechaActualizacion'] as String),
         version: (j['version'] as num).toInt(),
       );
 }
@@ -150,9 +152,14 @@ class IncidenciasRepository {
         '$rutaIncidencias/$id',
         {
           'version': version,
-          // "?valor": la clave solo se incluye si el valor no es null.
-          'titulo': ?titulo,
-          'descripcion': ?descripcion,
+          // La clave solo se incluye si el valor no es null. (Antes se usaba
+          // "'clave': ?valor", pero floor_generator 1.5.0 no entiende esa
+          // sintaxis de Dart 3.8 y build_runner fallaba; por eso se ignora
+          // aquí la regla use_null_aware_elements, que pide justo esa sintaxis.)
+          // ignore: use_null_aware_elements
+          if (titulo != null) 'titulo': titulo,
+          // ignore: use_null_aware_elements
+          if (descripcion != null) 'descripcion': descripcion,
           if (estado != null) 'estado': estadoAApi(estado),
           if (prioridad != null) 'prioridad': prioridadAApi(prioridad),
         },

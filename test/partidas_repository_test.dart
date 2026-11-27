@@ -58,7 +58,8 @@ void main() {
     expect(api.cuerpo,
         {'juego': 'SUDOKU', 'tiempoSegundos': 245, 'puntuacion': 655});
     expect(partida.id, 7);
-    expect(partida.fecha, DateTime(2026, 11, 5, 21, 30, 12, 123, 456));
+    // El backend manda la hora UTC sin zona: se interpreta como UTC (P14).
+    expect(partida.fecha, DateTime.utc(2026, 11, 5, 21, 30, 12, 123, 456));
   });
 
   test('misPartidas hace GET autenticado y convierte la lista', () async {

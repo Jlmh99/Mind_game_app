@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../data/adjuntos_cache.dart';
 import '../../../../data/mensajes_repository.dart';
 
-/// Hora de envío en formato HH:mm.
-String horaMensaje(DateTime f) =>
-    '${f.hour.toString().padLeft(2, '0')}:${f.minute.toString().padLeft(2, '0')}';
+/// Hora de envío en formato HH:mm, en la hora del teléfono (la fecha del
+/// servidor llega en UTC; toLocal no cambia una fecha que ya es local).
+String horaMensaje(DateTime f) {
+  final l = f.toLocal();
+  return '${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
+}
 
 String _rolLegible(String? rol) => switch (rol) {
       'ADMIN' => 'Administrador',

@@ -89,10 +89,11 @@ bool palabraCorrecta(List<List<String?>> tablero, PalabraCrucigrama p) =>
 bool crucigramaCompleto(List<List<String?>> tablero) =>
     palabrasCrucigrama.every((p) => palabraCorrecta(tablero, p));
 
-/// Puntuación = max(0, 1000 - segundos - 25 * errores).
+/// Puntuación = 1000 - segundos - 25 * errores, acotada entre 0 y 1000
+/// (igual que el Sudoku desde P13-01: con valores negativos no supera 1000).
 int calcularPuntuacionCrucigrama(int segundos, int errores) {
   final puntos = 1000 - segundos - 25 * errores;
-  return puntos < 0 ? 0 : puntos;
+  return puntos.clamp(0, 1000);
 }
 
 /// Convierte segundos a "m:ss" (igual que formatoTiempo de la web).
@@ -124,6 +125,60 @@ class CrucigramaState {
 
   factory CrucigramaState.nuevo() =>
       CrucigramaState(tablero: copiarTableroCrucigrama(tableroInicialCrucigrama));
+
+  // ---------------- Persistencia (partida en curso) ----------------
+
+  /// Datos para guardar la partida en curso (sin "terminado": una partida
+  /// terminada no se guarda). Los bloques negros se guardan como null.
+  Map<String, dynamic> toJson() => {
+        'tablero': tablero,
+        'filaSel': filaSel,
+        'colSel': colSel,
+        'orientacion': orientacion.name,
+        'segundos': segundos,
+        'errores': errores,
+      };
+
+  /// Reconstruye una partida guardada. Lanza FormatException si el tablero no
+  /// coincide con el del crucigrama (tamaño, bloques negros o letras fijas),
+  /// para descartar una partida corrupta.
+  factory CrucigramaState.fromJson(Map<String, dynamic> j) {
+    final filas = j['tablero'];
+    final base = tableroInicialCrucigrama;
+    if (filas is! List || filas.length != base.length) {
+      throw const FormatException('tablero inválido');
+    }
+    final tablero = <List<String?>>[];
+    for (var f = 0; f < base.length; f++) {
+      final fila = filas[f];
+      if (fila is! List || fila.length != base[f].length) {
+        throw const FormatException('tablero inválido');
+      }
+      tablero.add([
+        for (var c = 0; c < base[f].length; c++)
+          if (base[f][c] == null && fila[c] == null)
+            null // bloque negro
+          else if (base[f][c] != null &&
+              fila[c] is String &&
+              (fila[c] as String).length <= 1 &&
+              ((base[f][c] ?? '').isEmpty || fila[c] == base[f][c]))
+            fila[c] as String
+          else
+            throw const FormatException('casilla inválida'),
+      ]);
+    }
+    int? posicion(Object? v, int max) => v is int && v >= 0 && v < max ? v : null;
+    final segundos = j['segundos'], errores = j['errores'];
+    return CrucigramaState(
+      tablero: tablero,
+      filaSel: posicion(j['filaSel'], base.length),
+      colSel: posicion(j['colSel'], base.first.length),
+      orientacion: Orientacion.values.firstWhere((o) => o.name == j['orientacion'],
+          orElse: () => Orientacion.horizontal),
+      segundos: segundos is int && segundos >= 0 ? segundos : 0,
+      errores: errores is int && errores >= 0 ? errores : 0,
+    );
+  }
 
   int get filas => tablero.length;
   int get columnas => tablero.first.length;

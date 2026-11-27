@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../auth/auth_controller.dart';
 import '../crucigrama/crucigrama_page.dart';
+import '../incidencias/incidencias_comun.dart';
 import '../incidencias/incidencias_page.dart';
 import '../mobileconnect/mobileconnect_page.dart';
 import '../perfil/perfil_page.dart';
@@ -21,6 +22,12 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Solo leemos el correo del estado de autenticación (nunca el token).
     final correo = ref.watch(authControllerProvider).correo ?? '';
+    // MobileConnect solo para AGENTE y ADMIN (Práctica 14). rolDesde trata un
+    // rol desconocido o null como USER, así que en ese caso también se oculta.
+    // Con select, el menú se actualiza al cambiar de sesión sin reiniciar.
+    // OJO: es solo de interfaz; la seguridad la aplica el backend por rol.
+    final rol = rolDesde(ref.watch(authControllerProvider.select((s) => s.rol)));
+    final verMobileConnect = rol != RolApp.user;
     final textos = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -59,11 +66,13 @@ class HomePage extends ConsumerWidget {
               icono: Icons.person_outline,
               onTap: () => _abrir(context, const PerfilPage()),
             ),
-            _Acceso(
-              titulo: 'MobileConnect',
-              icono: Icons.devices_outlined,
-              onTap: () => _abrir(context, const MobileConnectPage()),
-            ),
+            if (verMobileConnect)
+              _Acceso(
+                titulo: 'MobileConnect',
+                icono: Icons.devices_outlined,
+                onTap: () => _abrir(context, const MobileConnectPage()),
+              ),
+            // Incidencias: todos los roles (USER reporta y sigue las suyas).
             _Acceso(
               titulo: 'Incidencias',
               icono: Icons.support_agent,
