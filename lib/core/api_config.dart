@@ -5,7 +5,14 @@
 //  - Celular por USB con "adb reverse tcp:8080 tcp:8080" -> http://localhost:8080
 // OJO: con http:// local también hay que volver a poner
 // android:usesCleartextTraffic="true" en AndroidManifest.xml.
-const String baseUrl = 'https://juegos-mentales-1jma.onrender.com';
+//
+// Se puede cambiar al compilar, sin tocar el código:
+//   flutter build apk --release --dart-define=API_BASE_URL=https://...
+// Sin --dart-define, apunta a Render.
+const String baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://juegos-mentales-1jma.onrender.com',
+);
 
 // Rutas reales del AuthController (Spring Boot)
 const String rutaRegistro = '/api/auth/register';
